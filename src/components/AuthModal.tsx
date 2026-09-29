@@ -18,10 +18,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   initialMode = 'login',
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
-  const [phone, setPhone] = useState('09060489645');
-  const [password, setPassword] = useState('Dan051391');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [promoCode, setPromoCode] = useState('BET88VIP');
+  const [promoCode, setPromoCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -192,15 +192,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           )}
 
-          {/* Quick autofill helper */}
+          {/* Security badge */}
           <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
-            <button
-              type="button"
-              onClick={handleQuickDemo}
-              className="text-amber-400 hover:underline"
-            >
-              Fill Provided Account (09060489645)
-            </button>
+            <span className="text-[11px] text-slate-500">256-Bit Financial Encryption</span>
             <span className="text-[11px] text-emerald-400 flex items-center gap-1">
               <ShieldCheck className="w-3.5 h-3.5" /> Secure Session
             </span>

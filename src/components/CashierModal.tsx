@@ -30,13 +30,13 @@ export const CashierModal: React.FC<CashierModalProps> = ({
 
   // Deposit state
   const [depositAmount, setDepositAmount] = useState<number>(500);
-  const [depositPhone, setDepositPhone] = useState('09060489645');
+  const [depositPhone, setDepositPhone] = useState('');
   const [depositSuccessReceipt, setDepositSuccessReceipt] = useState<Transaction | null>(null);
 
   // Withdraw state
   const [withdrawAmount, setWithdrawAmount] = useState<number>(500);
-  const [withdrawPhone, setWithdrawPhone] = useState('09060489645');
-  const [withdrawName, setWithdrawName] = useState('Dan S.');
+  const [withdrawPhone, setWithdrawPhone] = useState('');
+  const [withdrawName, setWithdrawName] = useState('');
   const [withdrawSuccessMsg, setWithdrawSuccessMsg] = useState<string | null>(null);
 
   const [isLoading, setIsLoading] = useState(false);

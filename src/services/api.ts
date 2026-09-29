@@ -11,17 +11,17 @@ export const api = {
       return {
         success: true,
         user: {
-          id: 'usr_default',
-          phone: '09060489645',
-          username: 'PinoyPlayer88',
-          balance: 5880.00,
-          vipLevel: 2,
-          vipPoints: 1450,
+          id: 'guest',
+          phone: '',
+          username: 'Guest Player',
+          balance: 0,
+          vipLevel: 1,
+          vipPoints: 0,
           currency: 'PHP',
-          isLoggedIn: true,
-          avatar: '🐉',
-          totalDeposited: 12500,
-          totalWithdrawn: 6800,
+          isLoggedIn: false,
+          avatar: '👤',
+          totalDeposited: 0,
+          totalWithdrawn: 0,
         }
       };
     }

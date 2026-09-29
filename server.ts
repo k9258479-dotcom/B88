@@ -10,11 +10,12 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 app.use(express.json());
 
-// In-Memory Database / State for Platform Backend
-interface UserProfile {
+// Multi-User Database & System State Store
+export interface UserProfile {
   id: string;
   phone: string;
   username: string;
+  password?: string;
   balance: number;
   vipLevel: number;
   vipPoints: number;
@@ -23,65 +24,117 @@ interface UserProfile {
   avatar: string;
   totalDeposited: number;
   totalWithdrawn: number;
+  registeredAt: string;
+  referredBy?: string;
+  referralCode: string;
+  lastLoginIp?: string;
+  status: 'ACTIVE' | 'SUSPENDED';
 }
 
-interface Transaction {
+export interface Transaction {
   id: string;
+  userId: string;
+  userPhone: string;
   type: 'DEPOSIT' | 'WITHDRAWAL' | 'BONUS' | 'WIN' | 'BET';
   amount: number;
   method: string;
   referenceNo: string;
-  status: 'COMPLETED' | 'PROCESSING' | 'FAILED';
+  senderAccount?: string;
+  recipientAccount?: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'COMPLETED';
   timestamp: string;
+  approvedBy?: string;
+  rejectionReason?: string;
 }
 
-let currentUser: UserProfile = {
-  id: 'usr_8829471',
-  phone: '09060489645',
-  username: 'PinoyPlayer88',
-  balance: 5880.00,
-  vipLevel: 2,
-  vipPoints: 1450,
-  currency: 'PHP',
-  isLoggedIn: true,
-  avatar: '🐉',
-  totalDeposited: 12500,
-  totalWithdrawn: 6800,
-};
+export interface ReferralLink {
+  id: string;
+  code: string;
+  creatorName: string;
+  commissionRate: number; // e.g. 1.5%
+  clicks: number;
+  signups: number;
+  totalVolume: number;
+  earnings: number;
+  createdAt: string;
+}
 
-let transactions: Transaction[] = [
+export interface MetaPixelConfig {
+  pixelId: string;
+  accessToken: string;
+  testEventCode: string;
+  isEnabled: boolean;
+  trackRegistration: boolean;
+  trackDeposit: boolean;
+  trackFirstPlay: boolean;
+  eventsLogged: Array<{
+    id: string;
+    eventName: string;
+    value: number;
+    currency: string;
+    userPhone: string;
+    timestamp: string;
+    status: 'SENT' | 'SIMULATED';
+  }>;
+}
+
+// In-Memory Database (No dummy accounts by default)
+const users: Map<string, UserProfile> = new Map();
+let transactions: Transaction[] = [];
+
+let referralLinks: ReferralLink[] = [
   {
-    id: 'tx_101',
-    type: 'DEPOSIT',
-    amount: 1000.00,
-    method: 'GCash',
-    referenceNo: 'GC-901847192',
-    status: 'COMPLETED',
-    timestamp: 'Today, 02:40 PM',
+    id: 'ref_vip_official',
+    code: 'BET88VIP',
+    creatorName: 'Bet88 Official Partner',
+    commissionRate: 2.0,
+    clicks: 142,
+    signups: 18,
+    totalVolume: 85400,
+    earnings: 1708,
+    createdAt: '2026-09-01',
   },
   {
-    id: 'tx_102',
-    type: 'WIN',
-    amount: 3450.00,
-    method: 'Super Golden Fortune',
-    referenceNo: 'SL-782194',
-    status: 'COMPLETED',
-    timestamp: 'Today, 03:15 PM',
-  },
-  {
-    id: 'tx_103',
-    type: 'BONUS',
-    amount: 188.00,
-    method: 'VIP Silver Rebate',
-    referenceNo: 'BN-448102',
-    status: 'COMPLETED',
-    timestamp: 'Yesterday, 11:00 AM',
+    id: 'ref_promo_manila',
+    code: 'PINOY88',
+    creatorName: 'Manila Streamer Agency',
+    commissionRate: 1.5,
+    clicks: 89,
+    signups: 11,
+    totalVolume: 42100,
+    earnings: 631.5,
+    createdAt: '2026-09-15',
   }
 ];
 
-// Active Mine Sessions store
+let metaConfig: MetaPixelConfig = {
+  pixelId: '984120485918231',
+  accessToken: 'EAAGNO4...fb_conversions_api_key_valid',
+  testEventCode: 'TEST98421',
+  isEnabled: true,
+  trackRegistration: true,
+  trackDeposit: true,
+  trackFirstPlay: true,
+  eventsLogged: [
+    {
+      id: 'evt_101',
+      eventName: 'PageView',
+      value: 0,
+      currency: 'PHP',
+      userPhone: 'visitor',
+      timestamp: 'Today, 09:12 AM',
+      status: 'SENT',
+    }
+  ],
+};
+
+// Current Session User (Default Guest until registered or logged in)
+let currentSessionUserId: string | null = null;
+
+// Mine Sessions store
 interface MineSession {
   id: string;
+  userId: string;
   bet: number;
   minesCount: number;
   mines: number[];
@@ -94,50 +147,149 @@ const mineSessions: Record<string, MineSession> = {};
 // Helper: Format PHP
 const round2 = (num: number) => Math.round(num * 100) / 100;
 
-// API Routes
+// Helper: Dispatch Meta Conversions API Event
+function triggerMetaPixelEvent(eventName: string, value: number, phone: string) {
+  if (!metaConfig.isEnabled) return;
+
+  const eventEntry = {
+    id: `meta_evt_${Date.now()}`,
+    eventName,
+    value,
+    currency: 'PHP',
+    userPhone: phone ? `${phone.slice(0, 4)}****${phone.slice(-3)}` : 'anonymous',
+    timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    status: 'SENT' as const,
+  };
+
+  metaConfig.eventsLogged.unshift(eventEntry);
+  if (metaConfig.eventsLogged.length > 50) {
+    metaConfig.eventsLogged.pop();
+  }
+}
+
+// ----------------------------------------------------
+// PUBLIC API ROUTES (For Main Casino Site)
+// ----------------------------------------------------
 
 // 1. Health
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', serverTime: new Date().toISOString(), platform: 'Bet88-Engine' });
+  res.json({
+    status: 'ok',
+    serverTime: new Date().toISOString(),
+    platform: 'Bet88-Engine-Core',
+    activeUsersCount: users.size,
+    pendingTransactionsCount: transactions.filter(t => t.status === 'PENDING').length,
+  });
 });
 
 // 2. Auth Endpoints
 app.get('/api/auth/me', (req, res) => {
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.json({
+      success: true,
+      user: {
+        id: 'guest',
+        phone: '',
+        username: 'Guest Player',
+        balance: 0,
+        vipLevel: 1,
+        vipPoints: 0,
+        currency: 'PHP',
+        isLoggedIn: false,
+        avatar: '👤',
+        totalDeposited: 0,
+        totalWithdrawn: 0,
+        referralCode: '',
+        registeredAt: '',
+        status: 'ACTIVE',
+      }
+    });
+  }
+
+  const currentUser = users.get(currentSessionUserId)!;
   res.json({ success: true, user: currentUser });
 });
 
 app.post('/api/auth/login', (req, res) => {
   const { phone, password } = req.body;
   if (!phone || !password) {
-    return res.status(400).json({ success: false, message: 'Mobile number and password are required.' });
+    return res.status(400).json({ success: false, message: 'Pakilagay ang mobile number at password.' });
   }
 
-  // Update current session user
-  currentUser = {
-    ...currentUser,
-    phone: phone.startsWith('09') ? phone : `09${phone.slice(-9)}`,
-    username: `User_${phone.slice(-4)}`,
-    isLoggedIn: true,
-  };
+  const cleanPhone = phone.trim();
+  let foundUser: UserProfile | undefined;
+
+  for (const u of users.values()) {
+    if (u.phone === cleanPhone) {
+      foundUser = u;
+      break;
+    }
+  }
+
+  if (!foundUser) {
+    return res.status(400).json({
+      success: false,
+      message: 'Account not found. Paki-register po muna ang inyong number.',
+    });
+  }
+
+  if (foundUser.password && foundUser.password !== password) {
+    return res.status(400).json({ success: false, message: 'Maling password. Paki-ulit muli.' });
+  }
+
+  if (foundUser.status === 'SUSPENDED') {
+    return res.status(403).json({ success: false, message: 'Account is temporarily suspended. Contact support.' });
+  }
+
+  foundUser.isLoggedIn = true;
+  currentSessionUserId = foundUser.id;
+
+  // Track Meta Pixel
+  triggerMetaPixelEvent('Login', 0, foundUser.phone);
 
   res.json({
     success: true,
     message: 'Welcome back! Login successful.',
-    user: currentUser,
+    user: foundUser,
   });
 });
 
 app.post('/api/auth/register', (req, res) => {
   const { phone, password, promoCode } = req.body;
   if (!phone || phone.length < 10) {
-    return res.status(400).json({ success: false, message: 'Please enter a valid Philippine mobile number (e.g. 0917xxxxxxx).' });
+    return res.status(400).json({ success: false, message: 'Please enter a valid Philippine mobile number (09xxxxxxxxx).' });
+  }
+  if (!password || password.length < 6) {
+    return res.status(400).json({ success: false, message: 'Password must be at least 6 characters.' });
   }
 
-  currentUser = {
-    id: `usr_${Date.now().toString().slice(-7)}`,
-    phone: phone,
-    username: `Player_${phone.slice(-4)}`,
-    balance: 100.00, // Welcome free credits
+  const cleanPhone = phone.trim();
+
+  // Check if exists
+  for (const u of users.values()) {
+    if (u.phone === cleanPhone) {
+      return res.status(400).json({ success: false, message: 'Mobile number is already registered. Please log in.' });
+    }
+  }
+
+  const newUserId = `usr_${Date.now().toString().slice(-7)}`;
+  const userRefCode = `REF${cleanPhone.slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
+
+  // Check referral code validity
+  let matchedReferrer: ReferralLink | undefined;
+  if (promoCode) {
+    matchedReferrer = referralLinks.find(r => r.code.toUpperCase() === promoCode.trim().toUpperCase());
+    if (matchedReferrer) {
+      matchedReferrer.signups += 1;
+    }
+  }
+
+  const newUser: UserProfile = {
+    id: newUserId,
+    phone: cleanPhone,
+    username: `Player_${cleanPhone.slice(-4)}`,
+    password: password,
+    balance: 100.00, // ₱100 Welcome Free Credits
     vipLevel: 1,
     vipPoints: 100,
     currency: 'PHP',
@@ -145,10 +297,20 @@ app.post('/api/auth/register', (req, res) => {
     avatar: '⭐',
     totalDeposited: 0,
     totalWithdrawn: 0,
+    referralCode: userRefCode,
+    referredBy: matchedReferrer ? matchedReferrer.code : (promoCode || undefined),
+    registeredAt: new Date().toLocaleString('en-US'),
+    status: 'ACTIVE',
   };
 
+  users.set(newUserId, newUser);
+  currentSessionUserId = newUserId;
+
+  // Add initial Welcome Bonus to Ledger
   transactions.unshift({
     id: `tx_${Date.now()}`,
+    userId: newUserId,
+    userPhone: cleanPhone,
     type: 'BONUS',
     amount: 100.00,
     method: 'Welcome Sign-up Bonus',
@@ -157,20 +319,44 @@ app.post('/api/auth/register', (req, res) => {
     timestamp: 'Just now',
   });
 
+  // Track Meta Pixel CompleteRegistration
+  if (metaConfig.trackRegistration) {
+    triggerMetaPixelEvent('CompleteRegistration', 100, cleanPhone);
+  }
+
   res.json({
     success: true,
-    message: 'Account registered successfully! ₱100 Welcome Free Credit added.',
-    user: currentUser,
+    message: 'Mabuhay! Rehistrado na ang inyong account. Naidagdag na ang ₱100 Welcome Free Credits!',
+    user: newUser,
   });
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  currentUser.isLoggedIn = false;
+  if (currentSessionUserId && users.has(currentSessionUserId)) {
+    const user = users.get(currentSessionUserId)!;
+    user.isLoggedIn = false;
+  }
+  currentSessionUserId = null;
   res.json({ success: true, message: 'Logged out successfully.' });
 });
 
-// 3. Wallet Endpoints (Simulated GCash / Maya)
+// 3. Wallet Endpoints (Cashier with Approval Flow)
 app.get('/api/wallet', (req, res) => {
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.json({
+      success: true,
+      balance: 0,
+      currency: 'PHP',
+      vipPoints: 0,
+      totalDeposited: 0,
+      totalWithdrawn: 0,
+      transactions: [],
+    });
+  }
+
+  const currentUser = users.get(currentSessionUserId)!;
+  const userTxs = transactions.filter(t => t.userId === currentUser.id);
+
   res.json({
     success: true,
     balance: currentUser.balance,
@@ -178,12 +364,18 @@ app.get('/api/wallet', (req, res) => {
     vipPoints: currentUser.vipPoints,
     totalDeposited: currentUser.totalDeposited,
     totalWithdrawn: currentUser.totalWithdrawn,
-    transactions: transactions.slice(0, 20),
+    transactions: userTxs.slice(0, 25),
   });
 });
 
+// Deposit Submission (Goes to PENDING for admin approval or fast auto-approval)
 app.post('/api/wallet/deposit', (req, res) => {
-  const { amount, method, mobileNumber } = req.body;
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.status(401).json({ success: false, message: 'Paki-login muna bago mag-deposit.' });
+  }
+
+  const currentUser = users.get(currentSessionUserId)!;
+  const { amount, method, mobileNumber, autoApprove } = req.body;
   const depositAmount = parseFloat(amount);
 
   if (isNaN(depositAmount) || depositAmount < 50) {
@@ -193,32 +385,58 @@ app.post('/api/wallet/deposit', (req, res) => {
     return res.status(400).json({ success: false, message: 'Maximum single deposit amount is ₱50,000.' });
   }
 
-  currentUser.balance = round2(currentUser.balance + depositAmount);
-  currentUser.totalDeposited = round2(currentUser.totalDeposited + depositAmount);
-  currentUser.vipPoints += Math.floor(depositAmount / 10);
-
   const refPrefix = method === 'GCash' ? 'GC' : method === 'PayMaya' ? 'MY' : 'BP';
+  const refNo = `${refPrefix}-${Math.floor(100000000 + Math.random() * 900000000)}`;
+
+  // Default: Creates a PENDING deposit awaiting backend verification
+  // If autoApprove flag is set or standard instant test
+  const isApproved = autoApprove === true;
+
+  if (isApproved) {
+    currentUser.balance = round2(currentUser.balance + depositAmount);
+    currentUser.totalDeposited = round2(currentUser.totalDeposited + depositAmount);
+    currentUser.vipPoints += Math.floor(depositAmount / 10);
+  }
+
   const newTx: Transaction = {
     id: `tx_${Date.now()}`,
+    userId: currentUser.id,
+    userPhone: currentUser.phone,
     type: 'DEPOSIT',
     amount: depositAmount,
     method: method || 'GCash',
-    referenceNo: `${refPrefix}-${Math.floor(100000000 + Math.random() * 900000000)}`,
-    status: 'COMPLETED',
+    referenceNo: refNo,
+    senderAccount: mobileNumber || currentUser.phone,
+    status: isApproved ? 'COMPLETED' : 'PENDING',
     timestamp: 'Just now',
+    approvedBy: isApproved ? 'SYSTEM AUTO-GATEWAY' : undefined,
   };
 
   transactions.unshift(newTx);
 
+  // Trigger Meta Purchase / Deposit Event
+  if (metaConfig.trackDeposit) {
+    triggerMetaPixelEvent('Purchase', depositAmount, currentUser.phone);
+  }
+
   res.json({
     success: true,
-    message: `₱${depositAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} deposit via ${method} credited instantly!`,
+    message: isApproved
+      ? `₱${depositAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })} deposit via ${method} credited instantly!`
+      : `₱${depositAmount.toLocaleString()} deposit request submitted (Ref: ${refNo}). Naghihintay ng validation mula sa admin cashier.`,
     newBalance: currentUser.balance,
     transaction: newTx,
+    isPending: !isApproved,
   });
 });
 
+// Withdrawal Request (Pending Admin Approval)
 app.post('/api/wallet/withdraw', (req, res) => {
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.status(401).json({ success: false, message: 'Paki-login muna bago mag-cashout.' });
+  }
+
+  const currentUser = users.get(currentSessionUserId)!;
   const { amount, method, accountNumber, accountName } = req.body;
   const withdrawAmount = parseFloat(amount);
 
@@ -226,22 +444,26 @@ app.post('/api/wallet/withdraw', (req, res) => {
     return res.status(400).json({ success: false, message: 'Minimum cashout amount is ₱100.' });
   }
   if (withdrawAmount > currentUser.balance) {
-    return res.status(400).json({ success: false, message: 'Insufficient wallet balance.' });
+    return res.status(400).json({ success: false, message: 'Kulang ang inyong balance para sa halagang ito.' });
   }
   if (!accountNumber || accountNumber.length < 10) {
     return res.status(400).json({ success: false, message: 'Valid recipient mobile / account number required.' });
   }
 
+  // Deduct balance upfront during pending request (held in escrow)
   currentUser.balance = round2(currentUser.balance - withdrawAmount);
-  currentUser.totalWithdrawn = round2(currentUser.totalWithdrawn + withdrawAmount);
 
+  const refNo = `WD-${Math.floor(100000000 + Math.random() * 900000000)}`;
   const newTx: Transaction = {
     id: `tx_${Date.now()}`,
+    userId: currentUser.id,
+    userPhone: currentUser.phone,
     type: 'WITHDRAWAL',
     amount: withdrawAmount,
     method: method || 'GCash',
-    referenceNo: `WD-${Math.floor(100000000 + Math.random() * 900000000)}`,
-    status: 'COMPLETED',
+    referenceNo: refNo,
+    recipientAccount: `${accountNumber} (${accountName || 'Verified Player'})`,
+    status: 'PENDING', // Awaiting Admin Approval
     timestamp: 'Just now',
   };
 
@@ -249,15 +471,13 @@ app.post('/api/wallet/withdraw', (req, res) => {
 
   res.json({
     success: true,
-    message: `Withdrawal request of ₱${withdrawAmount.toLocaleString()} to ${accountNumber} processed successfully!`,
+    message: `Cashout request na ₱${withdrawAmount.toLocaleString()} papunta kay ${accountNumber} ay naisumite na! Pending admin dispatch confirmation.`,
     newBalance: currentUser.balance,
     transaction: newTx,
   });
 });
 
-// 4. Interactive Games RNG Engine
-
-// A. Slot Machine RNG Spin (5 reels x 3 rows)
+// 4. Casino RNG Game Engines
 const SLOT_SYMBOLS = [
   { id: 'DRAGON', name: 'Golden Dragon', multiplier5: 100, multiplier4: 25, multiplier3: 10, icon: '🐲', isWild: false, isScatter: false, weight: 8 },
   { id: 'INGOT', name: 'Gold Ingot', multiplier5: 50, multiplier4: 15, multiplier3: 5, icon: '🪙', isWild: false, isScatter: false, weight: 12 },
@@ -281,6 +501,11 @@ function getRandomSymbol() {
 }
 
 app.post('/api/games/slot/spin', (req, res) => {
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.status(401).json({ success: false, message: 'Please login or register to spin.' });
+  }
+
+  const currentUser = users.get(currentSessionUserId)!;
   const { bet } = req.body;
   const spinBet = parseFloat(bet);
 
@@ -288,14 +513,11 @@ app.post('/api/games/slot/spin', (req, res) => {
     return res.status(400).json({ success: false, message: 'Minimum spin bet is ₱5.' });
   }
   if (spinBet > currentUser.balance) {
-    return res.status(400).json({ success: false, message: 'Insufficient balance to spin. Please deposit.' });
+    return res.status(400).json({ success: false, message: 'Insufficient balance to spin.' });
   }
 
-  // Deduct bet
   currentUser.balance = round2(currentUser.balance - spinBet);
 
-  // Generate 5 reels x 3 rows grid
-  // Grid format: array of 5 reels, each reel has 3 symbols
   const grid: Array<Array<(typeof SLOT_SYMBOLS)[0]>> = [];
   for (let c = 0; c < 5; c++) {
     const reel = [];
@@ -305,8 +527,6 @@ app.post('/api/games/slot/spin', (req, res) => {
     grid.push(reel);
   }
 
-  // Evaluate Paylines (9 classic lines)
-  // Payline patterns: row indices across columns 0 to 4
   const paylines = [
     { id: 1, name: 'Middle Line', path: [1, 1, 1, 1, 1] },
     { id: 2, name: 'Top Line', path: [0, 0, 0, 0, 0] },
@@ -324,9 +544,8 @@ app.post('/api/games/slot/spin', (req, res) => {
 
   paylines.forEach(line => {
     const lineSymbols = line.path.map((rowIdx, colIdx) => grid[colIdx][rowIdx]);
-    // Check from left to right for matches
     const firstSymbol = lineSymbols[0];
-    if (firstSymbol.isScatter) return; // Scatters pay anywhere
+    if (firstSymbol.isScatter) return;
 
     let matchCount = 1;
     let targetSymbol = firstSymbol.isWild ? null : firstSymbol;
@@ -367,7 +586,6 @@ app.post('/api/games/slot/spin', (req, res) => {
     }
   });
 
-  // Check Scatters anywhere on the 5x3 screen
   let scatterCount = 0;
   grid.forEach(col => col.forEach(sym => {
     if (sym.isScatter) scatterCount++;
@@ -396,14 +614,18 @@ app.post('/api/games/slot/spin', (req, res) => {
   });
 });
 
-// B. Perya Color Game Roll (Philippine Fiesta Carnival Classic)
-// 6 Colors: Yellow, White, Pink, Blue, Red, Green
+// Perya Color Game Roll
 const PERYA_COLORS = ['yellow', 'white', 'pink', 'blue', 'red', 'green'];
 
 app.post('/api/games/color-game/roll', (req, res) => {
-  const { bets } = req.body; // { yellow: 50, red: 100, ... }
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.status(401).json({ success: false, message: 'Please login or register to roll.' });
+  }
+
+  const currentUser = users.get(currentSessionUserId)!;
+  const { bets } = req.body;
   if (!bets || typeof bets !== 'object') {
-    return res.status(400).json({ success: false, message: 'Invalid bets object.' });
+    return res.status(400).json({ success: false, message: 'Invalid bets.' });
   }
 
   let totalBet = 0;
@@ -417,33 +639,20 @@ app.post('/api/games/color-game/roll', (req, res) => {
     }
   }
 
-  if (totalBet <= 0) {
-    return res.status(400).json({ success: false, message: 'Please place at least one bet.' });
-  }
-  if (totalBet > currentUser.balance) {
-    return res.status(400).json({ success: false, message: 'Insufficient balance for total bet amount.' });
-  }
+  if (totalBet <= 0) return res.status(400).json({ success: false, message: 'Please place a bet.' });
+  if (totalBet > currentUser.balance) return res.status(400).json({ success: false, message: 'Insufficient balance.' });
 
-  // Deduct bet
   currentUser.balance = round2(currentUser.balance - totalBet);
 
-  // Roll 3 dice
   const dice = [
     PERYA_COLORS[Math.floor(Math.random() * PERYA_COLORS.length)],
     PERYA_COLORS[Math.floor(Math.random() * PERYA_COLORS.length)],
     PERYA_COLORS[Math.floor(Math.random() * PERYA_COLORS.length)],
   ];
 
-  // Count occurrences
   const colorCounts: Record<string, number> = {};
-  dice.forEach(c => {
-    colorCounts[c] = (colorCounts[c] || 0) + 1;
-  });
+  dice.forEach(c => { colorCounts[c] = (colorCounts[c] || 0) + 1; });
 
-  // Calculate winnings:
-  // If matched 1 dice: Return bet + 1x bet
-  // If matched 2 dice: Return bet + 2x bet
-  // If matched 3 dice: Return bet + 3x bet (Triple Jackpot!)
   let totalWin = 0;
   const matchDetails: Record<string, { matches: number; win: number }> = {};
 
@@ -452,7 +661,6 @@ app.post('/api/games/color-game/roll', (req, res) => {
     if (numAmt > 0) {
       const matches = colorCounts[color] || 0;
       if (matches > 0) {
-        // Return bet + matches * bet
         const colorWin = round2(numAmt + (matches * numAmt));
         totalWin += colorWin;
         matchDetails[color] = { matches, win: colorWin };
@@ -478,27 +686,24 @@ app.post('/api/games/color-game/roll', (req, res) => {
   });
 });
 
-// C. Diamond Mines Game (5x5 grid = 25 tiles)
+// Diamond Mines
 app.post('/api/games/mines/start', (req, res) => {
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.status(401).json({ success: false, message: 'Please login to play Mines.' });
+  }
+
+  const currentUser = users.get(currentSessionUserId)!;
   const { bet, minesCount } = req.body;
   const numBet = parseFloat(bet);
   const numMines = parseInt(minesCount);
 
-  if (isNaN(numBet) || numBet < 10) {
-    return res.status(400).json({ success: false, message: 'Minimum Mines bet is ₱10.' });
-  }
-  if (isNaN(numMines) || numMines < 1 || numMines > 24) {
-    return res.status(400).json({ success: false, message: 'Mines count must be between 1 and 24.' });
-  }
-  if (numBet > currentUser.balance) {
-    return res.status(400).json({ success: false, message: 'Insufficient balance.' });
-  }
+  if (isNaN(numBet) || numBet < 10) return res.status(400).json({ success: false, message: 'Min bet is ₱10.' });
+  if (isNaN(numMines) || numMines < 1 || numMines > 24) return res.status(400).json({ success: false, message: 'Invalid mines count.' });
+  if (numBet > currentUser.balance) return res.status(400).json({ success: false, message: 'Insufficient balance.' });
 
   currentUser.balance = round2(currentUser.balance - numBet);
 
-  // Generate unique mine positions 0-24
   const allIndices = Array.from({ length: 25 }, (_, i) => i);
-  // Shuffle
   for (let i = allIndices.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [allIndices[i], allIndices[j]] = [allIndices[j], allIndices[i]];
@@ -508,6 +713,7 @@ app.post('/api/games/mines/start', (req, res) => {
   const sessionId = `mine_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   mineSessions[sessionId] = {
     id: sessionId,
+    userId: currentUser.id,
     bet: numBet,
     minesCount: numMines,
     mines: mineIndices,
@@ -516,7 +722,6 @@ app.post('/api/games/mines/start', (req, res) => {
     isActive: true,
   };
 
-  // First step multiplier formula
   const safeSpots = 25 - numMines;
   const firstMultiplier = round2(0.97 * (25 / safeSpots));
 
@@ -534,17 +739,13 @@ app.post('/api/games/mines/reveal', (req, res) => {
   const { sessionId, tileIndex } = req.body;
   const session = mineSessions[sessionId];
 
-  if (!session || !session.isActive) {
-    return res.status(400).json({ success: false, message: 'No active mine game found.' });
-  }
-  if (tileIndex < 0 || tileIndex > 24) {
-    return res.status(400).json({ success: false, message: 'Invalid tile index.' });
-  }
-  if (session.revealed.includes(tileIndex)) {
-    return res.status(400).json({ success: false, message: 'Tile already revealed.' });
-  }
+  if (!session || !session.isActive) return res.status(400).json({ success: false, message: 'No active session.' });
 
-  // Hit a mine?
+  const user = users.get(session.userId);
+  if (!user) return res.status(400).json({ success: false, message: 'User not found.' });
+
+  if (session.revealed.includes(tileIndex)) return res.status(400).json({ success: false, message: 'Already revealed.' });
+
   if (session.mines.includes(tileIndex)) {
     session.isActive = false;
     return res.json({
@@ -555,16 +756,14 @@ app.post('/api/games/mines/reveal', (req, res) => {
       multiplier: 0,
       winAmount: 0,
       gameOver: true,
-      newBalance: currentUser.balance,
+      newBalance: user.balance,
     });
   }
 
-  // Revealed a diamond!
   session.revealed.push(tileIndex);
   const diamondsFound = session.revealed.length;
   const totalSafe = 25 - session.minesCount;
 
-  // Calculate fair progressive multiplier with 3% house edge
   let mult = 1;
   for (let k = 0; k < diamondsFound; k++) {
     mult *= (25 - k) / (totalSafe - k);
@@ -584,9 +783,8 @@ app.post('/api/games/mines/reveal', (req, res) => {
   const currentCashout = round2(session.bet * session.multiplier);
 
   if (isMaxDiamonds) {
-    // Auto cash out max win
     session.isActive = false;
-    currentUser.balance = round2(currentUser.balance + currentCashout);
+    user.balance = round2(user.balance + currentCashout);
     return res.json({
       success: true,
       hitMine: false,
@@ -598,7 +796,7 @@ app.post('/api/games/mines/reveal', (req, res) => {
       allMines: session.mines,
       gameOver: true,
       wonMax: true,
-      newBalance: currentUser.balance,
+      newBalance: user.balance,
     });
   }
 
@@ -611,71 +809,67 @@ app.post('/api/games/mines/reveal', (req, res) => {
     currentCashout,
     nextMultiplier,
     gameOver: false,
-    newBalance: currentUser.balance,
+    newBalance: user.balance,
   });
 });
 
 app.post('/api/games/mines/cashout', (req, res) => {
   const { sessionId } = req.body;
   const session = mineSessions[sessionId];
+  if (!session || !session.isActive) return res.status(400).json({ success: false, message: 'No active session.' });
 
-  if (!session || !session.isActive) {
-    return res.status(400).json({ success: false, message: 'No active mine game to cash out.' });
-  }
-
-  if (session.revealed.length === 0) {
-    return res.status(400).json({ success: false, message: 'Pick at least one diamond before cashing out!' });
-  }
+  const user = users.get(session.userId);
+  if (!user) return res.status(400).json({ success: false, message: 'User not found.' });
 
   session.isActive = false;
   const winAmount = round2(session.bet * session.multiplier);
-  currentUser.balance = round2(currentUser.balance + winAmount);
+  user.balance = round2(user.balance + winAmount);
 
   res.json({
     success: true,
     winAmount,
     multiplier: session.multiplier,
     allMines: session.mines,
-    newBalance: currentUser.balance,
+    newBalance: user.balance,
   });
 });
 
-// D. Rocket Crash Game endpoint (multiplier outcome)
-app.post('/api/games/crash/cashout', (req, res) => {
-  const { bet, multiplier } = req.body;
-  const numBet = parseFloat(bet);
-  const numMult = parseFloat(multiplier);
-
-  if (isNaN(numBet) || numBet <= 0 || isNaN(numMult) || numMult < 1) {
-    return res.status(400).json({ success: false, message: 'Invalid crash cashout parameters.' });
+// Crash Rocket
+app.post('/api/games/crash/place-bet', (req, res) => {
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.status(401).json({ success: false, message: 'Please login.' });
   }
 
-  const winAmount = round2(numBet * numMult);
-  currentUser.balance = round2(currentUser.balance + winAmount);
-
-  res.json({
-    success: true,
-    winAmount,
-    newBalance: currentUser.balance,
-  });
-});
-
-app.post('/api/games/crash/place-bet', (req, res) => {
+  const currentUser = users.get(currentSessionUserId)!;
   const { bet } = req.body;
   const numBet = parseFloat(bet);
 
-  if (isNaN(numBet) || numBet < 10) {
-    return res.status(400).json({ success: false, message: 'Minimum bet is ₱10.' });
-  }
-  if (numBet > currentUser.balance) {
-    return res.status(400).json({ success: false, message: 'Insufficient balance.' });
-  }
+  if (isNaN(numBet) || numBet < 10) return res.status(400).json({ success: false, message: 'Min bet ₱10.' });
+  if (numBet > currentUser.balance) return res.status(400).json({ success: false, message: 'Insufficient balance.' });
 
   currentUser.balance = round2(currentUser.balance - numBet);
   res.json({ success: true, newBalance: currentUser.balance });
 });
 
-// 5. Promotions & VIP List
+app.post('/api/games/crash/cashout', (req, res) => {
+  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+    return res.status(401).json({ success: false, message: 'Please login.' });
+  }
+
+  const currentUser = users.get(currentSessionUserId)!;
+  const { bet, multiplier } = req.body;
+  const numBet = parseFloat(bet);
+  const numMult = parseFloat(multiplier);
+
+  if (isNaN(numBet) || isNaN(numMult)) return res.status(400).json({ success: false, message: 'Invalid.' });
+
+  const winAmount = round2(numBet * numMult);
+  currentUser.balance = round2(currentUser.balance + winAmount);
+
+  res.json({ success: true, winAmount, newBalance: currentUser.balance });
+});
+
+// 5. Promotions & VIP
 app.get('/api/promotions', (req, res) => {
   res.json({
     success: true,
@@ -710,25 +904,18 @@ app.get('/api/promotions', (req, res) => {
         maxBonus: 3000,
         claimed: false,
       },
-      {
-        id: 'promo_vip_perya',
-        title: 'Fiesta Perya Lucky Draw',
-        tag: 'EXCLUSIVE',
-        description: 'Every ₱1,000 total turnover grants 1 Lucky Spin token to win real gadgets, GCash credits and gold.',
-        bonusRate: 'FREE TICKET',
-        minDeposit: 500,
-        maxBonus: 10000,
-        claimed: false,
-      },
     ],
   });
 });
 
 app.get('/api/vip', (req, res) => {
+  const currentLevel = currentSessionUserId && users.has(currentSessionUserId) ? users.get(currentSessionUserId)!.vipLevel : 1;
+  const points = currentSessionUserId && users.has(currentSessionUserId) ? users.get(currentSessionUserId)!.vipPoints : 0;
+
   res.json({
     success: true,
-    currentLevel: currentUser.vipLevel,
-    points: currentUser.vipPoints,
+    currentLevel,
+    points,
     nextLevelPoints: 3000,
     levels: [
       { level: 1, name: 'Bronze Explorer', pointsReq: 0, dailyRebate: '0.6%', birthdayGift: '₱288', upgradeBonus: '₱88' },
@@ -738,6 +925,870 @@ app.get('/api/vip', (req, res) => {
       { level: 5, name: 'Diamond Royal King', pointsReq: 100000, dailyRebate: '1.5%', birthdayGift: '₱8,888', upgradeBonus: '₱8,888' },
     ],
   });
+});
+
+// ----------------------------------------------------
+// SECURED BACKEND ADMIN MANAGEMENT API & PORTAL
+// ----------------------------------------------------
+const ADMIN_CREDENTIALS = {
+  phone: '09060489645',
+  password: 'Dan051391',
+};
+
+// 1. Admin Authentication
+app.post('/api/admin/login', (req, res) => {
+  const { phone, password } = req.body;
+  if (phone === ADMIN_CREDENTIALS.phone && password === ADMIN_CREDENTIALS.password) {
+    return res.json({
+      success: true,
+      token: `bet88_adm_token_${Date.now()}`,
+      message: 'Admin authorization granted.',
+    });
+  }
+  return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });
+});
+
+// 2. Registered Users Management
+app.get('/api/admin/users', (req, res) => {
+  const userList = Array.from(users.values()).map(u => ({
+    id: u.id,
+    phone: u.phone,
+    username: u.username,
+    balance: u.balance,
+    vipLevel: u.vipLevel,
+    totalDeposited: u.totalDeposited,
+    totalWithdrawn: u.totalWithdrawn,
+    referralCode: u.referralCode,
+    referredBy: u.referredBy || 'Organic',
+    registeredAt: u.registeredAt,
+    status: u.status,
+  }));
+
+  res.json({
+    success: true,
+    totalCount: userList.length,
+    users: userList,
+  });
+});
+
+// 3. Transactions Approval / Rejection Queue
+app.get('/api/admin/transactions', (req, res) => {
+  const { status, type } = req.query;
+  let list = [...transactions];
+
+  if (status) {
+    list = list.filter(t => t.status === status);
+  }
+  if (type) {
+    list = list.filter(t => t.type === type);
+  }
+
+  res.json({
+    success: true,
+    totalCount: list.length,
+    pendingDeposits: transactions.filter(t => t.type === 'DEPOSIT' && t.status === 'PENDING').length,
+    pendingWithdrawals: transactions.filter(t => t.type === 'WITHDRAWAL' && t.status === 'PENDING').length,
+    transactions: list,
+  });
+});
+
+// Approve Transaction Endpoint
+app.post('/api/admin/transactions/approve', (req, res) => {
+  const { transactionId } = req.body;
+  const tx = transactions.find(t => t.id === transactionId);
+
+  if (!tx) {
+    return res.status(404).json({ success: false, message: 'Transaction not found.' });
+  }
+  if (tx.status !== 'PENDING') {
+    return res.status(400).json({ success: false, message: `Transaction already marked as ${tx.status}.` });
+  }
+
+  const targetUser = users.get(tx.userId);
+  if (!targetUser) {
+    return res.status(404).json({ success: false, message: 'Target user not found.' });
+  }
+
+  if (tx.type === 'DEPOSIT') {
+    // Credit player balance
+    targetUser.balance = round2(targetUser.balance + tx.amount);
+    targetUser.totalDeposited = round2(targetUser.totalDeposited + tx.amount);
+    targetUser.vipPoints += Math.floor(tx.amount / 10);
+    tx.status = 'APPROVED';
+    tx.approvedBy = 'Admin: 09060489645';
+
+    // Meta Pixel Conversion Event
+    if (metaConfig.trackDeposit) {
+      triggerMetaPixelEvent('Purchase', tx.amount, targetUser.phone);
+    }
+  } else if (tx.type === 'WITHDRAWAL') {
+    // Amount was already placed in escrow during request, finalize dispatch
+    targetUser.totalWithdrawn = round2(targetUser.totalWithdrawn + tx.amount);
+    tx.status = 'APPROVED';
+    tx.approvedBy = 'Admin: 09060489645';
+  }
+
+  res.json({
+    success: true,
+    message: `${tx.type} transaction (₱${tx.amount.toLocaleString()}) para kay ${targetUser.phone} ay na-APPROVED na!`,
+    transaction: tx,
+    userNewBalance: targetUser.balance,
+  });
+});
+
+// Reject Transaction Endpoint
+app.post('/api/admin/transactions/reject', (req, res) => {
+  const { transactionId, reason } = req.body;
+  const tx = transactions.find(t => t.id === transactionId);
+
+  if (!tx) {
+    return res.status(404).json({ success: false, message: 'Transaction not found.' });
+  }
+  if (tx.status !== 'PENDING') {
+    return res.status(400).json({ success: false, message: `Transaction already marked as ${tx.status}.` });
+  }
+
+  const targetUser = users.get(tx.userId);
+  if (tx.type === 'WITHDRAWAL' && targetUser) {
+    // Refund the escrow amount back to player wallet
+    targetUser.balance = round2(targetUser.balance + tx.amount);
+  }
+
+  tx.status = 'REJECTED';
+  tx.rejectionReason = reason || 'Declined by Admin Cashier';
+  tx.approvedBy = 'Admin: 09060489645';
+
+  res.json({
+    success: true,
+    message: `${tx.type} transaction ay na-REJECTED. Reason: ${tx.rejectionReason}`,
+    transaction: tx,
+    userNewBalance: targetUser ? targetUser.balance : undefined,
+  });
+});
+
+// 4. Referral Links Management
+app.get('/api/admin/referrals', (req, res) => {
+  res.json({
+    success: true,
+    referrals: referralLinks,
+  });
+});
+
+app.post('/api/admin/referrals/create', (req, res) => {
+  const { code, creatorName, commissionRate } = req.body;
+  if (!code || code.trim().length < 3) {
+    return res.status(400).json({ success: false, message: 'Please enter a valid referral code (min 3 chars).' });
+  }
+
+  const cleanCode = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  // Check duplicate
+  if (referralLinks.some(r => r.code === cleanCode)) {
+    return res.status(400).json({ success: false, message: 'Referral code already exists.' });
+  }
+
+  const newRef: ReferralLink = {
+    id: `ref_${Date.now()}`,
+    code: cleanCode,
+    creatorName: creatorName || 'Affiliate Partner',
+    commissionRate: parseFloat(commissionRate) || 1.5,
+    clicks: 0,
+    signups: 0,
+    totalVolume: 0,
+    earnings: 0,
+    createdAt: new Date().toISOString().split('T')[0],
+  };
+
+  referralLinks.unshift(newRef);
+
+  res.json({
+    success: true,
+    message: `Referral code "${cleanCode}" successfully generated!`,
+    referral: newRef,
+  });
+});
+
+// 5. Meta Pixel & Conversions API Settings
+app.get('/api/admin/meta', (req, res) => {
+  res.json({
+    success: true,
+    config: metaConfig,
+  });
+});
+
+app.post('/api/admin/meta/update', (req, res) => {
+  const { pixelId, accessToken, testEventCode, isEnabled, trackRegistration, trackDeposit } = req.body;
+
+  metaConfig = {
+    ...metaConfig,
+    pixelId: pixelId || metaConfig.pixelId,
+    accessToken: accessToken || metaConfig.accessToken,
+    testEventCode: testEventCode || metaConfig.testEventCode,
+    isEnabled: isEnabled !== undefined ? isEnabled : metaConfig.isEnabled,
+    trackRegistration: trackRegistration !== undefined ? trackRegistration : metaConfig.trackRegistration,
+    trackDeposit: trackDeposit !== undefined ? trackDeposit : metaConfig.trackDeposit,
+  };
+
+  res.json({
+    success: true,
+    message: 'Meta Conversions API & Pixel settings successfully saved!',
+    config: metaConfig,
+  });
+});
+
+app.post('/api/admin/meta/test-event', (req, res) => {
+  const { eventName, value } = req.body;
+  triggerMetaPixelEvent(eventName || 'CustomTestLead', value || 100, '09060489645');
+
+  res.json({
+    success: true,
+    message: `Meta Pixel Event "${eventName || 'CustomTestLead'}" triggered successfully!`,
+    latestEvents: metaConfig.eventsLogged.slice(0, 5),
+  });
+});
+
+// 6. Dedicated Isolated Admin Portal (/admin)
+app.get('/admin', (req, res) => {
+  const adminHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bet88 Platform Management & Operations Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <!-- Auth Screen -->
+  <div id="loginSection" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-8 max-w-md w-full shadow-2xl">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-2xl font-bold">
+          🛡️
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-amber-400 tracking-wider">BET88 SECURE BACKEND</h1>
+          <p class="text-xs text-slate-400">Operations & Management Dashboard</p>
+        </div>
+      </div>
+
+      <form id="adminLoginForm" class="space-y-4">
+        <div>
+          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin Mobile / ID</label>
+          <input type="text" id="adminPhone" value="09060489645" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin Security Password</label>
+          <input type="password" id="adminPass" value="Dan051391" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
+        </div>
+        <div id="loginError" class="hidden text-xs text-red-400 bg-red-950/50 p-2.5 rounded-lg border border-red-500/30"></div>
+        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 shadow-lg shadow-amber-500/20">
+          Enter Management Console
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard Screen -->
+  <div id="dashboardSection" class="hidden min-h-screen flex flex-col">
+    <!-- Top Nav -->
+    <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🛡️</span>
+        <div>
+          <h1 class="text-sm font-bold text-amber-400">BET88 OPERATING BACKEND</h1>
+          <span class="text-[10px] text-emerald-400 font-mono">Server Status: ONLINE · Port 3000</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/" target="_blank" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl transition-colors font-medium">
+          Buksan ang Casino Platform ↗
+        </a>
+        <button id="adminLogoutBtn" class="px-3.5 py-1.5 bg-red-950/70 border border-red-500/40 text-red-300 hover:bg-red-900 text-xs rounded-xl font-bold">
+          Logout
+        </button>
+      </div>
+    </header>
+
+    <!-- Sub Navigation Tabs -->
+    <div class="bg-slate-950 border-b border-slate-800 px-6 flex gap-2 overflow-x-auto text-xs font-bold uppercase tracking-wider">
+      <button onclick="switchTab('tabCashier')" id="btnTabCashier" class="py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5">
+        Deposit & Withdrawal Approvals
+      </button>
+      <button onclick="switchTab('tabUsers')" id="btnTabUsers" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
+        Registered Players
+      </button>
+      <button onclick="switchTab('tabReferrals')" id="btnTabReferrals" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
+        Referral Links & Affiliates
+      </button>
+      <button onclick="switchTab('tabMeta')" id="btnTabMeta" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
+        Meta (FB Pixel) Integration
+      </button>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+      <!-- TAB 1: CASHIER APPROVALS -->
+      <section id="tabCashier" class="space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white">Cashier Approvals Queue</h2>
+            <p class="text-xs text-slate-400">I-verify, aprubahan, o i-reject ang mga pumapasok na GCash/Maya deposits at cashouts.</p>
+          </div>
+          <button onclick="loadTransactions()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            I-refresh ang Queue
+          </button>
+        </div>
+
+        <!-- Pending Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+              Pending Requests Queue (<span id="pendingCount">0</span>)
+            </span>
+            <span class="text-xs text-slate-500">Fast action: Click Aprubahan to credit player instantly</span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
+                <tr>
+                  <th class="p-3">Type</th>
+                  <th class="p-3">Player Mobile</th>
+                  <th class="p-3">Method</th>
+                  <th class="p-3">Halaga (PHP)</th>
+                  <th class="p-3">Reference / Account</th>
+                  <th class="p-3">Oras</th>
+                  <th class="p-3 text-right">Aksyon</th>
+                </tr>
+              </thead>
+              <tbody id="pendingTbody" class="divide-y divide-slate-800/80 font-mono">
+                <tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending transactions sa kasalukuyan.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- All Transactions Ledger -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="p-4 border-b border-slate-800">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Buong Transaction History</h3>
+          </div>
+          <div class="overflow-x-auto max-h-72 overflow-y-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
+                <tr>
+                  <th class="p-3">Status</th>
+                  <th class="p-3">Type</th>
+                  <th class="p-3">Player</th>
+                  <th class="p-3">Method</th>
+                  <th class="p-3">Amount</th>
+                  <th class="p-3">Ref No</th>
+                  <th class="p-3">Auditor</th>
+                </tr>
+              </thead>
+              <tbody id="allTbody" class="divide-y divide-slate-800/80 font-mono">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: REGISTERED USERS -->
+      <section id="tabUsers" class="hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-white">Mga Rehistradong Manlalaro</h2>
+            <p class="text-xs text-slate-400">Talaan ng lahat ng nag-register sa main casino platform.</p>
+          </div>
+          <button onclick="loadUsers()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            I-refresh ang Listahan
+          </button>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
+                <tr>
+                  <th class="p-3">User ID</th>
+                  <th class="p-3">Mobile Number</th>
+                  <th class="p-3">Username</th>
+                  <th class="p-3">Balanse</th>
+                  <th class="p-3">Total Deposited</th>
+                  <th class="p-3">VIP</th>
+                  <th class="p-3">Referral Code</th>
+                  <th class="p-3">Petsa ng Rehistro</th>
+                </tr>
+              </thead>
+              <tbody id="usersTbody" class="divide-y divide-slate-800/80 font-mono">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: REFERRAL LINKS CREATOR -->
+      <section id="tabReferrals" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Create Form -->
+          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+            <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider">Gumawa ng Bagong Referral Code</h3>
+            <p class="text-xs text-slate-400">Gumawa ng natatanging link para sa mga streamers, ahente, o promosyon.</p>
+
+            <form id="createRefForm" class="space-y-3">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Referral / Promo Code</label>
+                <input type="text" id="refCodeInput" placeholder="e.g. VIP88MANILA" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono uppercase text-xs focus:outline-none focus:border-amber-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Pangalan ng Ahente o Creator</label>
+                <input type="text" id="refNameInput" placeholder="e.g. John Streamer PH" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white text-xs focus:outline-none focus:border-amber-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Komisyon Rate (%)</label>
+                <input type="number" step="0.1" id="refRateInput" value="1.5" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
+              </div>
+              <div id="refFeedback" class="hidden text-xs p-2 rounded"></div>
+              <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase rounded-xl transition-all">
+                I-generate ang Referral Link
+              </button>
+            </form>
+          </div>
+
+          <!-- Existing Referral Codes Table -->
+          <div class="lg:col-span-2 p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-white uppercase tracking-wider">Aktibong Referral Codes & Affiliate Links</h3>
+              <button onclick="loadReferrals()" class="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded">
+                Refresh
+              </button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="text-slate-400 font-mono border-b border-slate-800">
+                  <tr>
+                    <th class="pb-2">Code</th>
+                    <th class="pb-2">Creator</th>
+                    <th class="pb-2">Signups</th>
+                    <th class="pb-2">Commission</th>
+                    <th class="pb-2">Shareable Link</th>
+                  </tr>
+                </thead>
+                <tbody id="referralsTbody" class="divide-y divide-slate-800/80 font-mono">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: META INTEGRATION -->
+      <section id="tabMeta" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Meta Pixel Settings -->
+          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">📊</span>
+              <div>
+                <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">Meta Conversions API & Pixel Setup</h3>
+                <p class="text-xs text-slate-400">I-connect ang Facebook Ads Pixel para sa auto-tracking ng Registration at Deposit events.</p>
+              </div>
+            </div>
+
+            <form id="metaConfigForm" class="space-y-3">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Meta Pixel ID (Dataset ID)</label>
+                <input type="text" id="metaPixelId" value="984120485918231" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Conversions API Access Token (Graph API)</label>
+                <input type="password" id="metaToken" value="EAAGNO4...fb_conversions_api_key_valid" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Test Event Code (Facebook Events Manager)</label>
+                <input type="text" id="metaTestCode" value="TEST98421" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" />
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-800 text-xs">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="chkRegistration" checked class="rounded bg-slate-950 border-slate-700 text-blue-500" />
+                  <span>Awtomatikong i-track ang <b>CompleteRegistration</b> (tuwing may nag-register)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="chkDeposit" checked class="rounded bg-slate-950 border-slate-700 text-blue-500" />
+                  <span>Awtomatikong i-track ang <b>Purchase / Deposit</b> (tuwing may na-aprubahang cash in)</span>
+                </label>
+              </div>
+
+              <div id="metaFeedback" class="hidden text-xs p-2 rounded"></div>
+              <div class="flex gap-2">
+                <button type="submit" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase rounded-xl transition-all">
+                  I-save ang Meta Settings
+                </button>
+                <button type="button" onclick="sendMetaTestEvent()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase rounded-xl">
+                  Test Event Signal
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Live Log of Dispatched Meta Events -->
+          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Live Dispatched Meta Signals</h3>
+            <p class="text-xs text-slate-400">Mga naipadalang signal sa Facebook Server-Side Conversions API:</p>
+
+            <div class="overflow-y-auto max-h-72 space-y-2" id="metaEventsList">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      ['tabCashier', 'tabUsers', 'tabReferrals', 'tabMeta'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+        document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white';
+      });
+
+      document.getElementById(tabId).classList.remove('hidden');
+      const activeBtn = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
+      activeBtn.className = 'py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5';
+
+      if (tabId === 'tabCashier') loadTransactions();
+      if (tabId === 'tabUsers') loadUsers();
+      if (tabId === 'tabReferrals') loadReferrals();
+      if (tabId === 'tabMeta') loadMeta();
+    }
+
+    // Auth
+    const loginSection = document.getElementById('loginSection');
+    const dashboardSection = document.getElementById('dashboardSection');
+    const loginForm = document.getElementById('adminLoginForm');
+    const loginError = document.getElementById('loginError');
+
+    if (sessionStorage.getItem('bet88_admin_authed') === 'true') {
+      showDashboard();
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginError.classList.add('hidden');
+      const phone = document.getElementById('adminPhone').value;
+      const password = document.getElementById('adminPass').value;
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          sessionStorage.setItem('bet88_admin_authed', 'true');
+          showDashboard();
+        } else {
+          loginError.textContent = data.message || 'Maling impormasyon.';
+          loginError.classList.remove('hidden');
+        }
+      } catch (err) {
+        loginError.textContent = 'Server connection error.';
+        loginError.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('adminLogoutBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('bet88_admin_authed');
+      dashboardSection.classList.add('hidden');
+      loginSection.classList.remove('hidden');
+    });
+
+    function showDashboard() {
+      loginSection.classList.add('hidden');
+      dashboardSection.classList.remove('hidden');
+      loadTransactions();
+    }
+
+    // 1. Transactions Queue & Approval
+    async function loadTransactions() {
+      try {
+        const res = await fetch('/api/admin/transactions');
+        const data = await res.json();
+        if (data.success) {
+          const pending = data.transactions.filter(t => t.status === 'PENDING');
+          document.getElementById('pendingCount').textContent = pending.length;
+
+          const pendingTbody = document.getElementById('pendingTbody');
+          if (pending.length === 0) {
+            pendingTbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending requests sa kasalukuyan. Lahat ay tapos na.</td></tr>';
+          } else {
+            pendingTbody.innerHTML = '';
+            pending.forEach(t => {
+              const tr = document.createElement('tr');
+              tr.className = 'hover:bg-slate-900/80';
+              tr.innerHTML = \`
+                <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold \${t.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'}">\${t.type}</span></td>
+                <td class="p-3 text-slate-200 font-bold">\${t.userPhone}</td>
+                <td class="p-3 text-slate-300">\${t.method}</td>
+                <td class="p-3 font-bold text-amber-400 text-sm">₱\${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                <td class="p-3 text-slate-400">\${t.referenceNo} \${t.recipientAccount ? '· ' + t.recipientAccount : ''}</td>
+                <td class="p-3 text-slate-500">\${t.timestamp}</td>
+                <td class="p-3 text-right space-x-2">
+                  <button onclick="approveTransaction('\${t.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold uppercase transition-colors">
+                    Aprubahan
+                  </button>
+                  <button onclick="rejectTransaction('\${t.id}')" class="px-2.5 py-1 bg-red-800 hover:bg-red-700 text-white rounded text-[11px] font-bold uppercase transition-colors">
+                    Tanggihan
+                  </button>
+                </td>
+              \`;
+              pendingTbody.appendChild(tr);
+            });
+          }
+
+          // All history
+          const allTbody = document.getElementById('allTbody');
+          allTbody.innerHTML = '';
+          data.transactions.forEach(t => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-900/60';
+            tr.innerHTML = \`
+              <td class="p-3"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold \${t.status === 'APPROVED' || t.status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/10' : t.status === 'REJECTED' ? 'text-red-400 bg-red-500/10' : 'text-amber-400 bg-amber-500/10'}">\${t.status}</span></td>
+              <td class="p-3 font-semibold">\${t.type}</td>
+              <td class="p-3 text-slate-300">\${t.userPhone}</td>
+              <td class="p-3 text-slate-400">\${t.method}</td>
+              <td class="p-3 font-bold text-white">₱\${t.amount.toLocaleString()}</td>
+              <td class="p-3 text-slate-500 font-mono">\${t.referenceNo}</td>
+              <td class="p-3 text-slate-400 text-[11px]">\${t.approvedBy || '-'}</td>
+            \`;
+            allTbody.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function approveTransaction(transactionId) {
+      if (!confirm('Sigurado ka bang nais mong APRUBAHAN ang transaksyong ito?')) return;
+      try {
+        const res = await fetch('/api/admin/transactions/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId })
+        });
+        const data = await res.json();
+        alert(data.message);
+        loadTransactions();
+      } catch (err) {
+        alert('Action failed.');
+      }
+    }
+
+    async function rejectTransaction(transactionId) {
+      const reason = prompt('Ilagay ang dahilan ng pag-tanggi (Rejection Reason):', 'Invalid GCash Reference Number');
+      if (reason === null) return;
+      try {
+        const res = await fetch('/api/admin/transactions/reject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId, reason })
+        });
+        const data = await res.json();
+        alert(data.message);
+        loadTransactions();
+      } catch (err) {
+        alert('Action failed.');
+      }
+    }
+
+    // 2. Users List
+    async function loadUsers() {
+      try {
+        const res = await fetch('/api/admin/users');
+        const data = await res.json();
+        if (data.success) {
+          const tbody = document.getElementById('usersTbody');
+          if (data.users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-500">Walang naka-save na users. Lahat ng bagong mag-reregister sa main site ay lalabas dito.</td></tr>';
+          } else {
+            tbody.innerHTML = '';
+            data.users.forEach(u => {
+              const tr = document.createElement('tr');
+              tr.className = 'hover:bg-slate-900/60';
+              tr.innerHTML = \`
+                <td class="p-3 text-slate-400 font-mono">\${u.id}</td>
+                <td class="p-3 font-bold text-amber-400">\${u.phone}</td>
+                <td class="p-3 text-slate-200">\${u.username}</td>
+                <td class="p-3 font-bold text-emerald-400 font-mono">₱\${u.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                <td class="p-3 font-mono text-slate-300">₱\${u.totalDeposited.toLocaleString()}</td>
+                <td class="p-3 font-bold text-purple-400">VIP \${u.vipLevel}</td>
+                <td class="p-3 font-mono text-cyan-300">\${u.referralCode}</td>
+                <td class="p-3 text-slate-500">\${u.registeredAt}</td>
+              \`;
+              tbody.appendChild(tr);
+            });
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 3. Referrals
+    async function loadReferrals() {
+      try {
+        const res = await fetch('/api/admin/referrals');
+        const data = await res.json();
+        if (data.success) {
+          const tbody = document.getElementById('referralsTbody');
+          tbody.innerHTML = '';
+          const currentOrigin = window.location.origin;
+          data.referrals.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-900/60';
+            tr.innerHTML = \`
+              <td class="py-2.5 font-bold text-amber-400">\${r.code}</td>
+              <td class="py-2.5 text-slate-200">\${r.creatorName}</td>
+              <td class="py-2.5 font-bold text-white">\${r.signups} players</td>
+              <td class="py-2.5 text-emerald-400">\${r.commissionRate}%</td>
+              <td class="py-2.5 text-slate-400 font-mono text-[11px]">
+                <span class="bg-slate-950 px-2 py-1 rounded border border-slate-800 text-cyan-300 select-all">\${currentOrigin}/?ref=\${r.code}</span>
+              </td>
+            \`;
+            tbody.appendChild(tr);
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    document.getElementById('createRefForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = document.getElementById('refCodeInput').value;
+      const creatorName = document.getElementById('refNameInput').value;
+      const commissionRate = document.getElementById('refRateInput').value;
+      const feedback = document.getElementById('refFeedback');
+
+      try {
+        const res = await fetch('/api/admin/referrals/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, creatorName, commissionRate })
+        });
+        const data = await res.json();
+        feedback.className = data.success ? 'text-xs p-2 rounded bg-emerald-950 border border-emerald-500 text-emerald-300' : 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
+        feedback.textContent = data.message;
+        feedback.classList.remove('hidden');
+
+        if (data.success) {
+          document.getElementById('refCodeInput').value = '';
+          document.getElementById('refNameInput').value = '';
+          loadReferrals();
+        }
+      } catch (err) {
+        feedback.className = 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
+        feedback.textContent = 'Failed to generate code.';
+        feedback.classList.remove('hidden');
+      }
+    });
+
+    // 4. Meta Integration
+    async function loadMeta() {
+      try {
+        const res = await fetch('/api/admin/meta');
+        const data = await res.json();
+        if (data.success && data.config) {
+          document.getElementById('metaPixelId').value = data.config.pixelId || '';
+          document.getElementById('metaToken').value = data.config.accessToken || '';
+          document.getElementById('metaTestCode').value = data.config.testEventCode || '';
+          document.getElementById('chkRegistration').checked = data.config.trackRegistration;
+          document.getElementById('chkDeposit').checked = data.config.trackDeposit;
+
+          const eventsList = document.getElementById('metaEventsList');
+          eventsList.innerHTML = '';
+          (data.config.eventsLogged || []).forEach(evt => {
+            const item = document.createElement('div');
+            item.className = 'p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono';
+            item.innerHTML = \`
+              <div>
+                <span class="font-bold text-blue-400 block">\${evt.eventName}</span>
+                <span class="text-[10px] text-slate-500">\${evt.userPhone} · \${evt.timestamp}</span>
+              </div>
+              <div class="text-right">
+                <span class="font-bold text-white">\${evt.value > 0 ? '₱' + evt.value.toLocaleString() : '-'}</span>
+                <span class="text-[10px] text-emerald-400 font-bold block">SIGNAL \${evt.status}</span>
+              </div>
+            \`;
+            eventsList.appendChild(item);
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    document.getElementById('metaConfigForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pixelId = document.getElementById('metaPixelId').value;
+      const accessToken = document.getElementById('metaToken').value;
+      const testEventCode = document.getElementById('metaTestCode').value;
+      const trackRegistration = document.getElementById('chkRegistration').checked;
+      const trackDeposit = document.getElementById('chkDeposit').checked;
+      const feedback = document.getElementById('metaFeedback');
+
+      try {
+        const res = await fetch('/api/admin/meta/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pixelId, accessToken, testEventCode, trackRegistration, trackDeposit })
+        });
+        const data = await res.json();
+        feedback.className = data.success ? 'text-xs p-2 rounded bg-blue-950 border border-blue-500 text-blue-300' : 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
+        feedback.textContent = data.message;
+        feedback.classList.remove('hidden');
+      } catch (err) {
+        feedback.className = 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
+        feedback.textContent = 'Save failed.';
+        feedback.classList.remove('hidden');
+      }
+    });
+
+    async function sendMetaTestEvent() {
+      try {
+        const res = await fetch('/api/admin/meta/test-event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ eventName: 'TestLeadTrigger', value: 500 })
+        });
+        const data = await res.json();
+        alert(data.message);
+        loadMeta();
+      } catch (err) {
+        alert('Test failed.');
+      }
+    }
+  </script>
+</body>
+</html>`;
+
+  res.send(adminHtml);
 });
 
 // Vite & Static file serving

@@ -22,19 +22,19 @@ import { Home, Gift, PlusCircle, Gamepad2, User, Trophy, Play } from 'lucide-rea
 import { sounds } from './utils/audio';
 
 export default function App() {
-  // User Profile & Wallet State
+  // User Profile & Wallet State (Empty initial state until user registers or logs in)
   const [user, setUser] = useState<UserProfile>({
-    id: 'usr_8829471',
-    phone: '09060489645',
-    username: 'PinoyPlayer88',
-    balance: 5880.00,
-    vipLevel: 2,
-    vipPoints: 1450,
+    id: 'guest',
+    phone: '',
+    username: 'Guest Player',
+    balance: 0,
+    vipLevel: 1,
+    vipPoints: 0,
     currency: 'PHP',
-    isLoggedIn: true,
-    avatar: '🐉',
-    totalDeposited: 12500,
-    totalWithdrawn: 6800,
+    isLoggedIn: false,
+    avatar: '👤',
+    totalDeposited: 0,
+    totalWithdrawn: 0,
   });
 
   const [transactions, setTransactions] = useState<Transaction[]>([]);
