@@ -1066,6 +1066,65 @@ app.post('/api/admin/transactions/reject', (req, res) => {
   });
 });
 
+// Manual Deposit / Credit Endpoint for Admin
+app.post('/api/admin/users/credit', (req, res) => {
+  const { phone, amount, note } = req.body;
+  const numAmount = parseFloat(amount);
+
+  if (!phone || isNaN(numAmount) || numAmount <= 0) {
+    return res.status(400).json({ success: false, message: 'Valid phone number and amount required.' });
+  }
+
+  const cleanPhone = phone.trim();
+  let targetUser = users.get(cleanPhone);
+
+  if (!targetUser) {
+    const newUser: UserProfile = {
+      id: cleanPhone,
+      phone: cleanPhone,
+      username: `Player_${cleanPhone.slice(-4)}`,
+      balance: numAmount,
+      vipLevel: 1,
+      vipPoints: Math.floor(numAmount / 10),
+      currency: 'PHP',
+      isLoggedIn: false,
+      avatar: '🎰',
+      totalDeposited: numAmount,
+      totalWithdrawn: 0,
+      referralCode: 'BET88VIP',
+      registeredAt: new Date().toISOString().split('T')[0],
+      status: 'ACTIVE',
+    };
+    users.set(cleanPhone, newUser);
+    targetUser = newUser;
+  } else {
+    targetUser.balance = round2(targetUser.balance + numAmount);
+    targetUser.totalDeposited = round2(targetUser.totalDeposited + numAmount);
+    targetUser.vipPoints += Math.floor(numAmount / 10);
+  }
+
+  const newTx: Transaction = {
+    id: `tx_admin_${Date.now()}`,
+    userId: cleanPhone,
+    userPhone: cleanPhone,
+    type: 'DEPOSIT',
+    amount: numAmount,
+    status: 'APPROVED',
+    method: note || 'Cashier Manual Credit',
+    referenceNo: `ADMIN-DEP-${Math.floor(100000 + Math.random() * 900000)}`,
+    timestamp: new Date().toLocaleTimeString(),
+    approvedBy: 'Admin: 09060489645',
+  };
+  transactions.unshift(newTx);
+
+  res.json({
+    success: true,
+    message: `Matagumpay na na-credit ang ₱${numAmount.toLocaleString()} sa account ni ${cleanPhone}!`,
+    newBalance: targetUser.balance,
+    transaction: newTx,
+  });
+});
+
 // 4. Referral Links Management
 app.get('/api/admin/referrals', (req, res) => {
   res.json({
