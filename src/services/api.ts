@@ -6,6 +6,8 @@ export const api = {
     try {
       const res = await fetch('/api/auth/me');
       if (!res.ok) throw new Error('Failed to fetch user');
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) throw new Error('Not JSON');
       return await res.json();
     } catch {
       return {
@@ -66,9 +68,12 @@ export const api = {
   async getWallet(): Promise<{ success: boolean; balance: number; currency: string; transactions: Transaction[] }> {
     try {
       const res = await fetch('/api/wallet');
+      if (!res.ok) throw new Error('Failed');
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) throw new Error('Not JSON');
       return await res.json();
     } catch {
-      return { success: true, balance: 5880, currency: 'PHP', transactions: [] };
+      return { success: true, balance: 0, currency: 'PHP', transactions: [] };
     }
   },
 
@@ -252,18 +257,60 @@ export const api = {
   async getPromotions(): Promise<{ success: boolean; promotions: Promotion[] }> {
     try {
       const res = await fetch('/api/promotions');
+      if (!res.ok) throw new Error('Failed');
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) throw new Error('Not JSON');
       return await res.json();
     } catch {
-      return { success: true, promotions: [] };
+      return {
+        success: true,
+        promotions: [
+          {
+            id: 'promo_welcome_100',
+            title: '100% First Deposit Match',
+            tag: 'HOT PROMO',
+            description: 'Double your first GCash/Maya deposit up to ₱5,000! Turn over 15x on any Slot or Crash game.',
+            bonusRate: '100%',
+            minDeposit: 100,
+            maxBonus: 5000,
+            claimed: false,
+          },
+          {
+            id: 'promo_daily_rebate',
+            title: '1.2% Unlimited Daily Rebate',
+            tag: 'DAILY CASH',
+            description: 'Get automated daily rebate on every valid wager with no turnover requirement and no max cap.',
+            bonusRate: '1.2%',
+            minDeposit: 0,
+            maxBonus: 999999,
+            claimed: true,
+          }
+        ]
+      };
     }
   },
 
   async getVipInfo(): Promise<{ success: boolean; currentLevel: number; points: number; nextLevelPoints: number; levels: VIPTier[] }> {
     try {
       const res = await fetch('/api/vip');
+      if (!res.ok) throw new Error('Failed');
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) throw new Error('Not JSON');
       return await res.json();
     } catch {
-      return { success: true, currentLevel: 2, points: 1450, nextLevelPoints: 3000, levels: [] };
+      return {
+        success: true,
+        currentLevel: 1,
+        points: 0,
+        nextLevelPoints: 1000,
+        levels: [
+          { level: 1, name: 'Bronze Explorer', pointsReq: 0, dailyRebate: '0.6%', birthdayGift: '₱288', upgradeBonus: '₱88' },
+          { level: 2, name: 'Silver High Roller', pointsReq: 1000, dailyRebate: '0.8%', birthdayGift: '₱588', upgradeBonus: '₱288' },
+          { level: 3, name: 'Gold VIP Champion', pointsReq: 5000, dailyRebate: '1.0%', birthdayGift: '₱1,288', upgradeBonus: '₱888' },
+          { level: 4, name: 'Platinum Grandmaster', pointsReq: 25000, dailyRebate: '1.2%', birthdayGift: '₱3,888', upgradeBonus: '₱2,888' },
+          { level: 5, name: 'Diamond Royal King', pointsReq: 100000, dailyRebate: '1.5%', birthdayGift: '₱8,888', upgradeBonus: '₱8,888' },
+        ]
+      };
     }
   }
 };
