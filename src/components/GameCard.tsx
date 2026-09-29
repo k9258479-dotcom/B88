@@ -22,7 +22,12 @@ export const GameCard: React.FC<GameCardProps> = ({ game, onPlay }) => {
         <img
           src={game.image}
           alt={game.title}
-          referrerPolicy="no-referrer"
+          onError={(e) => {
+            // High reliability fallback SVG placeholder
+            const target = e.currentTarget;
+            target.onerror = null;
+            target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="400" height="300" fill="%230f172a"/><circle cx="200" cy="150" r="70" fill="%23f59e0b" fill-opacity="0.15"/><text x="50%" y="48%" dominant-baseline="middle" text-anchor="middle" font-size="48">🎰</text><text x="50%" y="68%" dominant-baseline="middle" text-anchor="middle" fill="%23f59e0b" font-family="sans-serif" font-weight="bold" font-size="14">BET88 LIVE</text></svg>';
+          }}
           className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
         />
 

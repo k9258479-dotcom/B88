@@ -28,7 +28,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
       {/* Background Graphic */}
       <div className="relative h-64 sm:h-80 md:h-96 w-full overflow-hidden">
         <img
-          src="/src/assets/images/casino_hero_banner_1790656581762.jpg"
+          src="/images/casino_hero_banner_1790656581762.jpg"
           alt="Bet88 Casino Hero"
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center brightness-90 filter"
