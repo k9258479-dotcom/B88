@@ -14,12 +14,19 @@ export interface UserProfile {
 
 export interface Transaction {
   id: string;
+  userId?: string;
+  userPhone?: string;
   type: 'DEPOSIT' | 'WITHDRAWAL' | 'BONUS' | 'WIN' | 'BET';
   amount: number;
+  currency?: string;
   method: string;
   referenceNo: string;
-  status: 'COMPLETED' | 'PROCESSING' | 'FAILED';
+  status: 'COMPLETED' | 'PROCESSING' | 'FAILED' | 'PENDING' | 'APPROVED' | 'REJECTED';
   timestamp: string;
+  createdAt?: string;
+  recipientAccount?: string;
+  approvedBy?: string;
+  rejectionReason?: string;
 }
 
 export type GameCategory = 'all' | 'slots' | 'live' | 'crash' | 'perya' | 'table' | 'fishing';
@@ -44,6 +51,9 @@ export interface SlotSymbol {
   icon: string;
   isWild: boolean;
   isScatter: boolean;
+  multiplier3?: number;
+  multiplier4?: number;
+  multiplier5?: number;
 }
 
 export interface SlotSpinResponse {

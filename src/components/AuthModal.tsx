@@ -53,7 +53,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         setErrorMsg(res.message || 'Login failed');
       }
     } else {
-      const res = await api.register(phone, password);
+      const res = await api.register(phone, password, promoCode);
       setIsLoading(false);
       if (res.success && res.user) {
         sounds.playBigWin();
