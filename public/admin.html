@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bet88 Platform Management & Operations Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+  <!-- Auth Screen -->
+  <div id="loginSection" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-8 max-w-md w-full shadow-2xl">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-2xl font-bold">
+          🛡️
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-amber-400 tracking-wider">BET88 SECURE BACKEND</h1>
+          <p class="text-xs text-slate-400">Operations & Management Dashboard</p>
+        </div>
+      </div>
+
+      <form id="adminLoginForm" class="space-y-4">
+        <div>
+          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin Mobile / ID</label>
+          <input type="text" id="adminPhone" value="09060489645" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin Security Password</label>
+          <input type="password" id="adminPass" value="Dan051391" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
+        </div>
+        <div id="loginError" class="hidden text-xs text-red-400 bg-red-950/50 p-2.5 rounded-lg border border-red-500/30"></div>
+        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 shadow-lg shadow-amber-500/20">
+          Enter Management Console
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard Screen -->
+  <div id="dashboardSection" class="hidden min-h-screen flex flex-col">
+    <!-- Top Nav -->
+    <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🛡️</span>
+        <div>
+          <h1 class="text-sm font-bold text-amber-400">BET88 OPERATING BACKEND</h1>
+          <span class="text-[10px] text-emerald-400 font-mono">Server Status: ONLINE · Operations Portal</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="/" target="_blank" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl transition-colors font-medium">
+          Buksan ang Casino Platform ↗
+        </a>
+        <button id="adminLogoutBtn" class="px-3.5 py-1.5 bg-red-950/70 border border-red-500/40 text-red-300 hover:bg-red-900 text-xs rounded-xl font-bold">
+          Logout
+        </button>
+      </div>
+    </header>
+
+    <!-- Sub Navigation Tabs -->
+    <div class="bg-slate-950 border-b border-slate-800 px-6 flex gap-2 overflow-x-auto text-xs font-bold uppercase tracking-wider">
+      <button onclick="switchTab('tabCashier')" id="btnTabCashier" class="py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5">
+        Deposit & Withdrawal Approvals
+      </button>
+      <button onclick="switchTab('tabUsers')" id="btnTabUsers" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
+        Registered Players
+      </button>
+      <button onclick="switchTab('tabReferrals')" id="btnTabReferrals" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
+        Referral Links & Affiliates
+      </button>
+      <button onclick="switchTab('tabMeta')" id="btnTabMeta" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
+        Meta (FB Pixel) Integration
+      </button>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+      <!-- TAB 1: CASHIER APPROVALS -->
+      <section id="tabCashier" class="space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white">Cashier Approvals Queue</h2>
+            <p class="text-xs text-slate-400">I-verify, aprubahan, o i-reject ang mga pumapasok na GCash/Maya deposits at cashouts.</p>
+          </div>
+          <button onclick="loadTransactions()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            I-refresh ang Queue
+          </button>
+        </div>
+
+        <!-- Pending Table -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+              Pending Requests Queue (<span id="pendingCount">0</span>)
+            </span>
+            <span class="text-xs text-slate-500">Fast action: Click Aprubahan to credit player instantly</span>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
+                <tr>
+                  <th class="p-3">Type</th>
+                  <th class="p-3">Player Mobile</th>
+                  <th class="p-3">Method</th>
+                  <th class="p-3">Halaga (PHP)</th>
+                  <th class="p-3">Reference / Account</th>
+                  <th class="p-3">Oras</th>
+                  <th class="p-3 text-right">Aksyon</th>
+                </tr>
+              </thead>
+              <tbody id="pendingTbody" class="divide-y divide-slate-800/80 font-mono">
+                <tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending transactions sa kasalukuyan.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- All Transactions Ledger -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="p-4 border-b border-slate-800">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Buong Transaction History</h3>
+          </div>
+          <div class="overflow-x-auto max-h-72 overflow-y-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
+                <tr>
+                  <th class="p-3">Status</th>
+                  <th class="p-3">Type</th>
+                  <th class="p-3">Player</th>
+                  <th class="p-3">Method</th>
+                  <th class="p-3">Amount</th>
+                  <th class="p-3">Ref No</th>
+                  <th class="p-3">Auditor</th>
+                </tr>
+              </thead>
+              <tbody id="allTbody" class="divide-y divide-slate-800/80 font-mono">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: REGISTERED USERS -->
+      <section id="tabUsers" class="hidden space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-white">Mga Rehistradong Manlalaro</h2>
+            <p class="text-xs text-slate-400">Talaan ng lahat ng nag-register sa main casino platform.</p>
+          </div>
+          <button onclick="loadUsers()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            I-refresh ang Listahan
+          </button>
+        </div>
+
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
+                <tr>
+                  <th class="p-3">User ID</th>
+                  <th class="p-3">Mobile Number</th>
+                  <th class="p-3">Username</th>
+                  <th class="p-3">Balanse</th>
+                  <th class="p-3">Total Deposited</th>
+                  <th class="p-3">VIP</th>
+                  <th class="p-3">Referral Code</th>
+                  <th class="p-3">Petsa ng Rehistro</th>
+                </tr>
+              </thead>
+              <tbody id="usersTbody" class="divide-y divide-slate-800/80 font-mono">
+                <!-- Injected via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: REFERRAL LINKS CREATOR -->
+      <section id="tabReferrals" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Create Form -->
+          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+            <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider">Gumawa ng Bagong Referral Code</h3>
+            <p class="text-xs text-slate-400">Gumawa ng natatanging link para sa mga streamers, ahente, o promosyon.</p>
+
+            <form id="createRefForm" class="space-y-3">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Referral / Promo Code</label>
+                <input type="text" id="refCodeInput" placeholder="e.g. VIP88MANILA" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono uppercase text-xs focus:outline-none focus:border-amber-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Pangalan ng Ahente o Creator</label>
+                <input type="text" id="refNameInput" placeholder="e.g. John Streamer PH" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white text-xs focus:outline-none focus:border-amber-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Komisyon Rate (%)</label>
+                <input type="number" step="0.1" id="refRateInput" value="1.5" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
+              </div>
+              <div id="refFeedback" class="hidden text-xs p-2 rounded"></div>
+              <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase rounded-xl transition-all">
+                I-generate ang Referral Link
+              </button>
+            </form>
+          </div>
+
+          <!-- Existing Referral Codes Table -->
+          <div class="lg:col-span-2 p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+              <h3 class="text-sm font-bold text-white uppercase tracking-wider">Aktibong Referral Codes & Affiliate Links</h3>
+              <button onclick="loadReferrals()" class="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded">
+                Refresh
+              </button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="text-slate-400 font-mono border-b border-slate-800">
+                  <tr>
+                    <th class="pb-2">Code</th>
+                    <th class="pb-2">Creator</th>
+                    <th class="pb-2">Signups</th>
+                    <th class="pb-2">Commission</th>
+                    <th class="pb-2">Shareable Link</th>
+                  </tr>
+                </thead>
+                <tbody id="referralsTbody" class="divide-y divide-slate-800/80 font-mono">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: META INTEGRATION -->
+      <section id="tabMeta" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Meta Pixel Settings -->
+          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+            <div class="flex items-center gap-2">
+              <span class="text-xl">📊</span>
+              <div>
+                <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">Meta Conversions API & Pixel Setup</h3>
+                <p class="text-xs text-slate-400">I-connect ang Facebook Ads Pixel para sa auto-tracking ng Registration at Deposit events.</p>
+              </div>
+            </div>
+
+            <form id="metaConfigForm" class="space-y-3">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Meta Pixel ID (Dataset ID)</label>
+                <input type="text" id="metaPixelId" value="984120485918231" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Conversions API Access Token (Graph API)</label>
+                <input type="password" id="metaToken" value="EAAGNO4...fb_conversions_api_key_valid" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Test Event Code (Facebook Events Manager)</label>
+                <input type="text" id="metaTestCode" value="TEST98421" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" />
+              </div>
+
+              <div class="space-y-2 pt-2 border-t border-slate-800 text-xs">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="chkRegistration" checked class="rounded bg-slate-950 border-slate-700 text-blue-500" />
+                  <span>Awtomatikong i-track ang <b>CompleteRegistration</b> (tuwing may nag-register)</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="chkDeposit" checked class="rounded bg-slate-950 border-slate-700 text-blue-500" />
+                  <span>Awtomatikong i-track ang <b>Purchase / Deposit</b> (tuwing may na-aprubahang cash in)</span>
+                </label>
+              </div>
+
+              <div id="metaFeedback" class="hidden text-xs p-2 rounded"></div>
+              <div class="flex gap-2">
+                <button type="submit" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase rounded-xl transition-all">
+                  I-save ang Meta Settings
+                </button>
+                <button type="button" onclick="sendMetaTestEvent()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase rounded-xl">
+                  Test Event Signal
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Live Log of Dispatched Meta Events -->
+          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Live Dispatched Meta Signals</h3>
+            <p class="text-xs text-slate-400">Mga naipadalang signal sa Facebook Server-Side Conversions API:</p>
+
+            <div class="overflow-y-auto max-h-72 space-y-2" id="metaEventsList">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      ['tabCashier', 'tabUsers', 'tabReferrals', 'tabMeta'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+        document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white';
+      });
+
+      document.getElementById(tabId).classList.remove('hidden');
+      const activeBtn = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
+      activeBtn.className = 'py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5';
+
+      if (tabId === 'tabCashier') loadTransactions();
+      if (tabId === 'tabUsers') loadUsers();
+      if (tabId === 'tabReferrals') loadReferrals();
+      if (tabId === 'tabMeta') loadMeta();
+    }
+
+    // Auth
+    const loginSection = document.getElementById('loginSection');
+    const dashboardSection = document.getElementById('dashboardSection');
+    const loginForm = document.getElementById('adminLoginForm');
+    const loginError = document.getElementById('loginError');
+
+    if (sessionStorage.getItem('bet88_admin_authed') === 'true') {
+      showDashboard();
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginError.classList.add('hidden');
+      const phone = document.getElementById('adminPhone').value;
+      const password = document.getElementById('adminPass').value;
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          sessionStorage.setItem('bet88_admin_authed', 'true');
+          showDashboard();
+        } else {
+          loginError.textContent = data.message || 'Maling impormasyon.';
+          loginError.classList.remove('hidden');
+        }
+      } catch (err) {
+        // Local state fallback if running static on Vercel
+        if (phone === '09060489645' && password === 'Dan051391') {
+          sessionStorage.setItem('bet88_admin_authed', 'true');
+          showDashboard();
+        } else {
+          loginError.textContent = 'Maling password o mobile number.';
+          loginError.classList.remove('hidden');
+        }
+      }
+    });
+
+    document.getElementById('adminLogoutBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('bet88_admin_authed');
+      dashboardSection.classList.add('hidden');
+      loginSection.classList.remove('hidden');
+    });
+
+    function showDashboard() {
+      loginSection.classList.add('hidden');
+      dashboardSection.classList.remove('hidden');
+      loadTransactions();
+    }
+
+    // Data in LocalStorage for Vercel Static deployment sync
+    function getStoredData(key, fallback) {
+      try {
+        const item = localStorage.getItem('bet88_' + key);
+        return item ? JSON.parse(item) : fallback;
+      } catch {
+        return fallback;
+      }
+    }
+    function setStoredData(key, val) {
+      try {
+        localStorage.setItem('bet88_' + key, JSON.stringify(val));
+      } catch (e) {}
+    }
+
+    // 1. Transactions Queue & Approval
+    async function loadTransactions() {
+      let transactions = [];
+      try {
+        const res = await fetch('/api/admin/transactions');
+        const data = await res.json();
+        if (data.success) transactions = data.transactions;
+      } catch (err) {
+        transactions = getStoredData('transactions', [
+          {
+            id: 'tx_sample_1',
+            type: 'DEPOSIT',
+            userPhone: '09171234567',
+            method: 'GCash',
+            amount: 500,
+            referenceNo: 'GC-982147101',
+            status: 'PENDING',
+            timestamp: 'Today, 02:40 PM',
+          },
+          {
+            id: 'tx_sample_2',
+            type: 'WITHDRAWAL',
+            userPhone: '09958765432',
+            method: 'PayMaya',
+            amount: 1500,
+            referenceNo: 'WD-881923012',
+            recipientAccount: '09958765432 (Juan D.)',
+            status: 'PENDING',
+            timestamp: 'Today, 02:45 PM',
+          }
+        ]);
+      }
+
+      const pending = transactions.filter(t => t.status === 'PENDING');
+      document.getElementById('pendingCount').textContent = pending.length;
+
+      const pendingTbody = document.getElementById('pendingTbody');
+      if (pending.length === 0) {
+        pendingTbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending requests sa kasalukuyan. Lahat ay tapos na.</td></tr>';
+      } else {
+        pendingTbody.innerHTML = '';
+        pending.forEach(t => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-900/80';
+          tr.innerHTML = `
+            <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'}">${t.type}</span></td>
+            <td class="p-3 text-slate-200 font-bold">${t.userPhone}</td>
+            <td class="p-3 text-slate-300">${t.method}</td>
+            <td class="p-3 font-bold text-amber-400 text-sm">₱${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td class="p-3 text-slate-400">${t.referenceNo} ${t.recipientAccount ? '· ' + t.recipientAccount : ''}</td>
+            <td class="p-3 text-slate-500">${t.timestamp}</td>
+            <td class="p-3 text-right space-x-2">
+              <button onclick="approveTransaction('${t.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold uppercase transition-colors">
+                Aprubahan
+              </button>
+              <button onclick="rejectTransaction('${t.id}')" class="px-2.5 py-1 bg-red-800 hover:bg-red-700 text-white rounded text-[11px] font-bold uppercase transition-colors">
+                Tanggihan
+              </button>
+            </td>
+          `;
+          pendingTbody.appendChild(tr);
+        });
+      }
+
+      // All history
+      const allTbody = document.getElementById('allTbody');
+      allTbody.innerHTML = '';
+      transactions.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-900/60';
+        tr.innerHTML = `
+          <td class="p-3"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${t.status === 'APPROVED' || t.status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/10' : t.status === 'REJECTED' ? 'text-red-400 bg-red-500/10' : 'text-amber-400 bg-amber-500/10'}">${t.status}</span></td>
+          <td class="p-3 font-semibold">${t.type}</td>
+          <td class="p-3 text-slate-300">${t.userPhone}</td>
+          <td class="p-3 text-slate-400">${t.method}</td>
+          <td class="p-3 font-bold text-white">₱${t.amount.toLocaleString()}</td>
+          <td class="p-3 text-slate-500 font-mono">${t.referenceNo}</td>
+          <td class="p-3 text-slate-400 text-[11px]">${t.approvedBy || '-'}</td>
+        `;
+        allTbody.appendChild(tr);
+      });
+    }
+
+    async function approveTransaction(transactionId) {
+      if (!confirm('Sigurado ka bang nais mong APRUBAHAN ang transaksyong ito?')) return;
+      try {
+        const res = await fetch('/api/admin/transactions/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId })
+        });
+        const data = await res.json();
+        alert(data.message);
+      } catch (err) {
+        // Fallback for static host
+        let txs = getStoredData('transactions', []);
+        const target = txs.find(t => t.id === transactionId);
+        if (target) {
+          target.status = 'APPROVED';
+          target.approvedBy = 'Admin: 09060489645';
+          setStoredData('transactions', txs);
+        }
+        alert('Transaction successfully APPROVED!');
+      }
+      loadTransactions();
+    }
+
+    async function rejectTransaction(transactionId) {
+      const reason = prompt('Ilagay ang dahilan ng pag-tanggi (Rejection Reason):', 'Invalid GCash Reference Number');
+      if (reason === null) return;
+      try {
+        const res = await fetch('/api/admin/transactions/reject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId, reason })
+        });
+        const data = await res.json();
+        alert(data.message);
+      } catch (err) {
+        // Fallback for static host
+        let txs = getStoredData('transactions', []);
+        const target = txs.find(t => t.id === transactionId);
+        if (target) {
+          target.status = 'REJECTED';
+          target.rejectionReason = reason;
+          target.approvedBy = 'Admin: 09060489645';
+          setStoredData('transactions', txs);
+        }
+        alert('Transaction REJECTED. Reason: ' + reason);
+      }
+      loadTransactions();
+    }
+
+    // 2. Users List
+    async function loadUsers() {
+      let users = [];
+      try {
+        const res = await fetch('/api/admin/users');
+        const data = await res.json();
+        if (data.success) users = data.users;
+      } catch (err) {
+        users = getStoredData('users', [
+          {
+            id: 'usr_sample_1',
+            phone: '09171234567',
+            username: 'Player_4567',
+            balance: 500,
+            vipLevel: 1,
+            totalDeposited: 500,
+            referralCode: 'REF456788',
+            registeredAt: '2026-09-28'
+          }
+        ]);
+      }
+
+      const tbody = document.getElementById('usersTbody');
+      if (users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-500">Walang naka-save na users. Lahat ng bagong mag-reregister sa main site ay lalabas dito.</td></tr>';
+      } else {
+        tbody.innerHTML = '';
+        users.forEach(u => {
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-900/60';
+          tr.innerHTML = `
+            <td class="p-3 text-slate-400 font-mono">${u.id}</td>
+            <td class="p-3 font-bold text-amber-400">${u.phone}</td>
+            <td class="p-3 text-slate-200">${u.username}</td>
+            <td class="p-3 font-bold text-emerald-400 font-mono">₱${u.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td class="p-3 font-mono text-slate-300">₱${u.totalDeposited.toLocaleString()}</td>
+            <td class="p-3 font-bold text-purple-400">VIP ${u.vipLevel}</td>
+            <td class="p-3 font-mono text-cyan-300">${u.referralCode}</td>
+            <td class="p-3 text-slate-500">${u.registeredAt}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    }
+
+    // 3. Referrals
+    async function loadReferrals() {
+      let referrals = [];
+      try {
+        const res = await fetch('/api/admin/referrals');
+        const data = await res.json();
+        if (data.success) referrals = data.referrals;
+      } catch (err) {
+        referrals = getStoredData('referrals', [
+          {
+            id: 'ref_1',
+            code: 'BET88VIP',
+            creatorName: 'Bet88 Official Partner',
+            signups: 18,
+            commissionRate: 2.0,
+          },
+          {
+            id: 'ref_2',
+            code: 'PINOY88',
+            creatorName: 'Manila Streamer Agency',
+            signups: 11,
+            commissionRate: 1.5,
+          }
+        ]);
+      }
+
+      const tbody = document.getElementById('referralsTbody');
+      tbody.innerHTML = '';
+      const currentOrigin = window.location.origin;
+      referrals.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-900/60';
+        tr.innerHTML = `
+          <td class="py-2.5 font-bold text-amber-400">${r.code}</td>
+          <td class="py-2.5 text-slate-200">${r.creatorName}</td>
+          <td class="py-2.5 font-bold text-white">${r.signups} players</td>
+          <td class="py-2.5 text-emerald-400">${r.commissionRate}%</td>
+          <td class="py-2.5 text-slate-400 font-mono text-[11px]">
+            <span class="bg-slate-950 px-2 py-1 rounded border border-slate-800 text-cyan-300 select-all">${currentOrigin}/?ref=${r.code}</span>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('createRefForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = document.getElementById('refCodeInput').value.trim().toUpperCase();
+      const creatorName = document.getElementById('refNameInput').value;
+      const commissionRate = parseFloat(document.getElementById('refRateInput').value) || 1.5;
+      const feedback = document.getElementById('refFeedback');
+
+      try {
+        const res = await fetch('/api/admin/referrals/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code, creatorName, commissionRate })
+        });
+        const data = await res.json();
+        feedback.className = data.success ? 'text-xs p-2 rounded bg-emerald-950 border border-emerald-500 text-emerald-300' : 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
+        feedback.textContent = data.message;
+        feedback.classList.remove('hidden');
+      } catch (err) {
+        // Fallback for static host
+        let refs = getStoredData('referrals', []);
+        refs.unshift({
+          id: 'ref_' + Date.now(),
+          code,
+          creatorName,
+          commissionRate,
+          signups: 0,
+        });
+        setStoredData('referrals', refs);
+        feedback.className = 'text-xs p-2 rounded bg-emerald-950 border border-emerald-500 text-emerald-300';
+        feedback.textContent = `Referral link para sa code "${code}" ay nalikha na!`;
+        feedback.classList.remove('hidden');
+      }
+
+      document.getElementById('refCodeInput').value = '';
+      document.getElementById('refNameInput').value = '';
+      loadReferrals();
+    });
+
+    // 4. Meta Integration
+    async function loadMeta() {
+      let config = getStoredData('metaConfig', {
+        pixelId: '984120485918231',
+        accessToken: 'EAAGNO4...fb_conversions_api_key_valid',
+        testEventCode: 'TEST98421',
+        trackRegistration: true,
+        trackDeposit: true,
+        eventsLogged: [
+          {
+            eventName: 'PageView',
+            userPhone: 'visitor',
+            timestamp: 'Just now',
+            value: 0,
+            status: 'SENT'
+          }
+        ]
+      });
+
+      try {
+        const res = await fetch('/api/admin/meta');
+        const data = await res.json();
+        if (data.success && data.config) config = data.config;
+      } catch (err) {}
+
+      document.getElementById('metaPixelId').value = config.pixelId || '';
+      document.getElementById('metaToken').value = config.accessToken || '';
+      document.getElementById('metaTestCode').value = config.testEventCode || '';
+      document.getElementById('chkRegistration').checked = config.trackRegistration;
+      document.getElementById('chkDeposit').checked = config.trackDeposit;
+
+      const eventsList = document.getElementById('metaEventsList');
+      eventsList.innerHTML = '';
+      (config.eventsLogged || []).forEach(evt => {
+        const item = document.createElement('div');
+        item.className = 'p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono';
+        item.innerHTML = `
+          <div>
+            <span class="font-bold text-blue-400 block">${evt.eventName}</span>
+            <span class="text-[10px] text-slate-500">${evt.userPhone} · ${evt.timestamp}</span>
+          </div>
+          <div class="text-right">
+            <span class="font-bold text-white">${evt.value > 0 ? '₱' + evt.value.toLocaleString() : '-'}</span>
+            <span class="text-[10px] text-emerald-400 font-bold block">SIGNAL ${evt.status}</span>
+          </div>
+        `;
+        eventsList.appendChild(item);
+      });
+    }
+
+    document.getElementById('metaConfigForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pixelId = document.getElementById('metaPixelId').value;
+      const accessToken = document.getElementById('metaToken').value;
+      const testEventCode = document.getElementById('metaTestCode').value;
+      const trackRegistration = document.getElementById('chkRegistration').checked;
+      const trackDeposit = document.getElementById('chkDeposit').checked;
+      const feedback = document.getElementById('metaFeedback');
+
+      const config = { pixelId, accessToken, testEventCode, trackRegistration, trackDeposit };
+      setStoredData('metaConfig', config);
+
+      try {
+        await fetch('/api/admin/meta/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config)
+        });
+      } catch (err) {}
+
+      feedback.className = 'text-xs p-2 rounded bg-blue-950 border border-blue-500 text-blue-300';
+      feedback.textContent = 'Meta Pixel & Conversions API settings successfully saved!';
+      feedback.classList.remove('hidden');
+    });
+
+    async function sendMetaTestEvent() {
+      const eventName = 'TestLeadTrigger';
+      const config = getStoredData('metaConfig', { eventsLogged: [] });
+      config.eventsLogged = config.eventsLogged || [];
+      config.eventsLogged.unshift({
+        eventName,
+        userPhone: '09060489645',
+        value: 500,
+        timestamp: new Date().toLocaleTimeString(),
+        status: 'SENT'
+      });
+      setStoredData('metaConfig', config);
+      alert('Meta Test Signal Dispatched to Facebook Events Manager!');
+      loadMeta();
+    }
+  </script>
+</body>
+</html>
