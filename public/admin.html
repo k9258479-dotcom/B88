@@ -319,7 +319,7 @@
           </button>
         </div>
 
-        <div id="winRatesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div id="winRatesList" class="grid grid-cols-1 md:grid-cols-2 max-w-2xl gap-5">
           <!-- Injected dynamically via loadWinRates() -->
         </div>
       </section>
@@ -915,7 +915,7 @@
       });
     }
 
-    // 4. Game Win Rates Management (Supports Firestore & Vercel Storage)
+    // 4. Game Win Rates Management (Super Ace Slot Active)
     const DEFAULT_WIN_RATES = {
       super_ace: {
         gameId: 'super_ace',
@@ -928,59 +928,11 @@
         freeSpinRate: 3,
         rigMode: 'BALANCED',
         updatedAt: new Date().toISOString(),
-      },
-      dragon_fortune: {
-        gameId: 'dragon_fortune',
-        gameName: 'Super Golden Fortune',
-        provider: 'JILI',
-        category: 'slots',
-        winRate: 97.4,
-        payoutMultiplier: 1.0,
-        wildBonusRate: 10,
-        freeSpinRate: 5,
-        rigMode: 'BALANCED',
-        updatedAt: new Date().toISOString(),
-      },
-      rocket_crash: {
-        gameId: 'rocket_crash',
-        gameName: 'Rocket Crash 88',
-        provider: 'Spribe',
-        category: 'crash',
-        winRate: 98.0,
-        payoutMultiplier: 1.0,
-        wildBonusRate: 0,
-        freeSpinRate: 0,
-        rigMode: 'BALANCED',
-        updatedAt: new Date().toISOString(),
-      },
-      diamond_mines: {
-        gameId: 'diamond_mines',
-        gameName: 'Diamond Mines 88',
-        provider: 'Spribe',
-        category: 'crash',
-        winRate: 97.0,
-        payoutMultiplier: 1.0,
-        wildBonusRate: 0,
-        freeSpinRate: 0,
-        rigMode: 'BALANCED',
-        updatedAt: new Date().toISOString(),
-      },
-      perya_color: {
-        gameId: 'perya_color',
-        gameName: 'Perya Color Game',
-        provider: 'Perya',
-        category: 'perya',
-        winRate: 96.8,
-        payoutMultiplier: 1.0,
-        wildBonusRate: 0,
-        freeSpinRate: 0,
-        rigMode: 'BALANCED',
-        updatedAt: new Date().toISOString(),
-      },
+      }
     };
 
     async function loadWinRates() {
-      let rates = DEFAULT_WIN_RATES;
+      let rates = { ...DEFAULT_WIN_RATES };
 
       // 1. Try Firestore
       try {
@@ -988,7 +940,10 @@
           const { db, doc, getDoc } = window.bet88Firestore;
           const snap = await getDoc(doc(db, 'settings', 'game_win_rates'));
           if (snap.exists()) {
-            rates = { ...DEFAULT_WIN_RATES, ...snap.data() };
+            const data = snap.data();
+            if (data.super_ace) {
+              rates.super_ace = { ...rates.super_ace, ...data.super_ace };
+            }
           }
         }
       } catch (err) {
@@ -999,19 +954,25 @@
       try {
         const res = await fetch('/api/admin/win-rates');
         const data = await res.json();
-        if (data.success && data.winRates) {
-          rates = { ...rates, ...data.winRates };
+        if (data.success && data.winRates && data.winRates.super_ace) {
+          rates.super_ace = { ...rates.super_ace, ...data.winRates.super_ace };
         }
       } catch (err) {
         // Fallback LocalStorage on static hosting (Vercel)
-        rates = getStoredData('game_win_rates', rates);
+        const stored = getStoredData('game_win_rates', rates);
+        if (stored && stored.super_ace) {
+          rates.super_ace = { ...rates.super_ace, ...stored.super_ace };
+        }
       }
+
+      // Ensure only currently active games (Super Ace) are displayed
+      const activeGamesList = [rates.super_ace].filter(Boolean);
 
       const container = document.getElementById('winRatesList');
       if (!container) return;
       container.innerHTML = '';
 
-      Object.values(rates).forEach(g => {
+      activeGamesList.forEach(g => {
         const card = document.createElement('div');
         card.className = 'p-5 bg-slate-900 border border-slate-800 hover:border-amber-500/40 rounded-2xl space-y-4 shadow-xl transition-all';
         card.innerHTML = `

@@ -170,55 +170,7 @@ let gameWinRates: Record<string, GameWinRateConfig> = {
     freeSpinRate: 3,
     rigMode: 'BALANCED',
     updatedAt: new Date().toISOString(),
-  },
-  dragon_fortune: {
-    gameId: 'dragon_fortune',
-    gameName: 'Super Golden Fortune',
-    provider: 'JILI',
-    category: 'slots',
-    winRate: 97.4,
-    payoutMultiplier: 1.0,
-    wildBonusRate: 10,
-    freeSpinRate: 5,
-    rigMode: 'BALANCED',
-    updatedAt: new Date().toISOString(),
-  },
-  rocket_crash: {
-    gameId: 'rocket_crash',
-    gameName: 'Rocket Crash 88',
-    provider: 'Spribe',
-    category: 'crash',
-    winRate: 98.0,
-    payoutMultiplier: 1.0,
-    wildBonusRate: 0,
-    freeSpinRate: 0,
-    rigMode: 'BALANCED',
-    updatedAt: new Date().toISOString(),
-  },
-  diamond_mines: {
-    gameId: 'diamond_mines',
-    gameName: 'Diamond Mines 88',
-    provider: 'Spribe',
-    category: 'crash',
-    winRate: 97.0,
-    payoutMultiplier: 1.0,
-    wildBonusRate: 0,
-    freeSpinRate: 0,
-    rigMode: 'BALANCED',
-    updatedAt: new Date().toISOString(),
-  },
-  perya_color: {
-    gameId: 'perya_color',
-    gameName: 'Perya Color Game',
-    provider: 'Perya',
-    category: 'perya',
-    winRate: 96.8,
-    payoutMultiplier: 1.0,
-    wildBonusRate: 0,
-    freeSpinRate: 0,
-    rigMode: 'BALANCED',
-    updatedAt: new Date().toISOString(),
-  },
+  }
 };
 
 // Helper: Format PHP
@@ -1609,7 +1561,7 @@ app.get('/admin', (req, res) => {
           </button>
         </div>
 
-        <div id="winRatesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div id="winRatesList" class="grid grid-cols-1 md:grid-cols-2 max-w-2xl gap-5">
           <!-- Injected dynamically via loadWinRates() -->
         </div>
       </section>
