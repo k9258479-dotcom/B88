@@ -1,4 +1,4 @@
-import { UserProfile, Transaction, Promotion, VIPTier, SlotSpinResponse, SlotSymbol } from '../types';
+import { UserProfile, Transaction, Promotion, VIPTier, SlotSpinResponse, SlotSymbol, GameWinRateConfig } from '../types';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
 
@@ -824,6 +824,72 @@ export const api = {
       try {
         await updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
       } catch {}
+    }
+  },
+
+  // Game Win Rate Management
+  async getGameWinRates(): Promise<{ success: boolean; winRates: Record<string, GameWinRateConfig> }> {
+    try {
+      const res = await fetch('/api/games/win-rates');
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch {}
+
+    // Fallback default
+    return {
+      success: true,
+      winRates: {
+        super_ace: {
+          gameId: 'super_ace',
+          gameName: 'Super Ace Slot',
+          provider: 'JILI',
+          category: 'slots',
+          winRate: 97.6,
+          payoutMultiplier: 1.0,
+          wildBonusRate: 8,
+          freeSpinRate: 3,
+          rigMode: 'BALANCED',
+          updatedAt: new Date().toISOString(),
+        }
+      }
+    };
+  },
+
+  async getGameWinRate(gameId: string): Promise<GameWinRateConfig> {
+    try {
+      const res = await fetch(`/api/games/win-rates/${gameId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.config) return data.config;
+      }
+    } catch {}
+
+    return {
+      gameId,
+      gameName: 'Super Ace Slot',
+      provider: 'JILI',
+      category: 'slots',
+      winRate: 97.6,
+      payoutMultiplier: 1.0,
+      wildBonusRate: 8,
+      freeSpinRate: 3,
+      rigMode: 'BALANCED',
+      updatedAt: new Date().toISOString(),
+    };
+  },
+
+  async updateGameWinRate(config: Partial<GameWinRateConfig> & { gameId: string }): Promise<{ success: boolean; message: string; config?: GameWinRateConfig }> {
+    try {
+      const res = await fetch('/api/admin/win-rates/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Server error updating game win rate.' };
     }
   }
 };

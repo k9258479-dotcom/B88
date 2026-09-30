@@ -144,6 +144,83 @@ interface MineSession {
 }
 const mineSessions: Record<string, MineSession> = {};
 
+// Game Win Rate (RTP & Volatility Engine) Settings
+export interface GameWinRateConfig {
+  gameId: string;
+  gameName: string;
+  provider: string;
+  category: string;
+  winRate: number; // 0 to 100 percentage
+  payoutMultiplier: number; // e.g. 1.0 = normal, 1.25 = generous, 0.75 = tight
+  wildBonusRate: number; // wild frequency bonus rate percentage (0 - 50%)
+  freeSpinRate: number; // free spin trigger frequency (0 - 50%)
+  rigMode: 'BALANCED' | 'HIGH_PAYOUT' | 'LOW_PAYOUT' | 'JACKPOT_HUNT';
+  updatedAt: string;
+}
+
+let gameWinRates: Record<string, GameWinRateConfig> = {
+  super_ace: {
+    gameId: 'super_ace',
+    gameName: 'Super Ace Slot',
+    provider: 'JILI',
+    category: 'slots',
+    winRate: 97.6,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 8,
+    freeSpinRate: 3,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  dragon_fortune: {
+    gameId: 'dragon_fortune',
+    gameName: 'Super Golden Fortune',
+    provider: 'JILI',
+    category: 'slots',
+    winRate: 97.4,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 10,
+    freeSpinRate: 5,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  rocket_crash: {
+    gameId: 'rocket_crash',
+    gameName: 'Rocket Crash 88',
+    provider: 'Spribe',
+    category: 'crash',
+    winRate: 98.0,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 0,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  diamond_mines: {
+    gameId: 'diamond_mines',
+    gameName: 'Diamond Mines 88',
+    provider: 'Spribe',
+    category: 'crash',
+    winRate: 97.0,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 0,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  perya_color: {
+    gameId: 'perya_color',
+    gameName: 'Perya Color Game',
+    provider: 'Perya',
+    category: 'perya',
+    winRate: 96.8,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 0,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+};
+
 // Helper: Format PHP
 const round2 = (num: number) => Math.round(num * 100) / 100;
 
@@ -171,7 +248,7 @@ function triggerMetaPixelEvent(eventName: string, value: number, phone: string) 
 // PUBLIC API ROUTES (For Main Casino Site)
 // ----------------------------------------------------
 
-// 1. Health
+// 1. Health & Config
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -179,6 +256,25 @@ app.get('/api/health', (req, res) => {
     platform: 'Bet88-Engine-Core',
     activeUsersCount: users.size,
     pendingTransactionsCount: transactions.filter(t => t.status === 'PENDING').length,
+  });
+});
+
+// Game Win Rate Public Access (Read-only for game clients)
+app.get('/api/games/win-rates', (req, res) => {
+  res.json({
+    success: true,
+    winRates: gameWinRates,
+  });
+});
+
+app.get('/api/games/win-rates/:gameId', (req, res) => {
+  const game = gameWinRates[req.params.gameId];
+  if (!game) {
+    return res.status(404).json({ success: false, message: 'Game win rate configuration not found.' });
+  }
+  res.json({
+    success: true,
+    config: game,
   });
 });
 
@@ -540,6 +636,7 @@ app.post('/api/games/slot/spin', (req, res) => {
   ];
 
   let totalWin = 0;
+  const slotConfig = gameWinRates['dragon_fortune'] || { winRate: 97.4, payoutMultiplier: 1.0 };
   const winningLines: Array<{ lineId: number; lineName: string; symbolId: string; count: number; winAmount: number; path: number[] }> = [];
 
   paylines.forEach(line => {
@@ -572,7 +669,7 @@ app.post('/api/games/slot/spin', (req, res) => {
       else if (matchCount === 3) lineMultiplier = scoringSymbol.multiplier3;
 
       const lineBet = spinBet / 9;
-      const winForLine = round2(lineBet * lineMultiplier);
+      const winForLine = round2(lineBet * lineMultiplier * (slotConfig.payoutMultiplier || 1.0));
       totalWin += winForLine;
 
       winningLines.push({
@@ -1206,7 +1303,46 @@ app.post('/api/admin/meta/test-event', (req, res) => {
   });
 });
 
-// 6. Dedicated Isolated Admin Portal (/admin)
+// 6. Game Win Rate & RTP Controller Management
+app.get('/api/admin/win-rates', (req, res) => {
+  res.json({
+    success: true,
+    winRates: gameWinRates,
+  });
+});
+
+app.post('/api/admin/win-rates/update', (req, res) => {
+  const { gameId, winRate, payoutMultiplier, wildBonusRate, freeSpinRate, rigMode } = req.body;
+
+  if (!gameId || !gameWinRates[gameId]) {
+    return res.status(404).json({ success: false, message: 'Invalid or unknown game ID.' });
+  }
+
+  const current = gameWinRates[gameId];
+  const newWinRate = winRate !== undefined ? Math.min(100, Math.max(1, parseFloat(winRate))) : current.winRate;
+  const newPayoutMultiplier = payoutMultiplier !== undefined ? Math.max(0.1, parseFloat(payoutMultiplier)) : current.payoutMultiplier;
+  const newWildBonusRate = wildBonusRate !== undefined ? Math.max(0, Math.min(50, parseFloat(wildBonusRate))) : current.wildBonusRate;
+  const newFreeSpinRate = freeSpinRate !== undefined ? Math.max(0, Math.min(50, parseFloat(freeSpinRate))) : current.freeSpinRate;
+  const newRigMode = rigMode || current.rigMode;
+
+  gameWinRates[gameId] = {
+    ...current,
+    winRate: newWinRate,
+    payoutMultiplier: newPayoutMultiplier,
+    wildBonusRate: newWildBonusRate,
+    freeSpinRate: newFreeSpinRate,
+    rigMode: newRigMode,
+    updatedAt: new Date().toISOString(),
+  };
+
+  res.json({
+    success: true,
+    message: `Matagumpay na na-set ang Win Rate ng ${current.gameName} sa ${newWinRate}%!`,
+    config: gameWinRates[gameId],
+  });
+});
+
+// 7. Dedicated Isolated Admin Portal (/admin)
 app.get('/admin', (req, res) => {
   const adminHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -1283,6 +1419,10 @@ app.get('/admin', (req, res) => {
       </button>
       <button onclick="switchTab('tabReferrals')" id="btnTabReferrals" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
         Referral Links & Affiliates
+      </button>
+      <button onclick="switchTab('tabWinRates')" id="btnTabWinRates" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5">
+        <span>🎮</span>
+        <span>Game Win Rates (RTP & Volatility)</span>
       </button>
       <button onclick="switchTab('tabMeta')" id="btnTabMeta" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
         Meta (FB Pixel) Integration
@@ -1452,6 +1592,28 @@ app.get('/admin', (req, res) => {
         </div>
       </section>
 
+      <!-- TAB 4: GAME WIN RATES & RTP CONTROLLER -->
+      <section id="tabWinRates" class="hidden space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>🎮</span>
+              <span>Game Win Rates & RTP (Return to Player) Control Center</span>
+            </h2>
+            <p class="text-xs text-slate-400">
+              I-set at kontrolin ang win rate percentage (RTP), payout multiplier, wild bonus rate, at volatility para sa bawat laro.
+            </p>
+          </div>
+          <button onclick="loadWinRates()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            I-refresh ang Rates
+          </button>
+        </div>
+
+        <div id="winRatesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <!-- Injected dynamically via loadWinRates() -->
+        </div>
+      </section>
+
       <!-- TAB 4: META INTEGRATION -->
       <section id="tabMeta" class="hidden space-y-6">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1520,7 +1682,7 @@ app.get('/admin', (req, res) => {
   <script>
     // Tab switching
     function switchTab(tabId) {
-      ['tabCashier', 'tabUsers', 'tabReferrals', 'tabMeta'].forEach(id => {
+      ['tabCashier', 'tabUsers', 'tabReferrals', 'tabWinRates', 'tabMeta'].forEach(id => {
         document.getElementById(id).classList.add('hidden');
         document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white';
       });
@@ -1532,6 +1694,7 @@ app.get('/admin', (req, res) => {
       if (tabId === 'tabCashier') loadTransactions();
       if (tabId === 'tabUsers') loadUsers();
       if (tabId === 'tabReferrals') loadReferrals();
+      if (tabId === 'tabWinRates') loadWinRates();
       if (tabId === 'tabMeta') loadMeta();
     }
 
@@ -1828,6 +1991,149 @@ app.get('/admin', (req, res) => {
         feedback.classList.remove('hidden');
       }
     });
+
+    // 4. Game Win Rates Management
+    async function loadWinRates() {
+      try {
+        const res = await fetch('/api/admin/win-rates');
+        const data = await res.json();
+        if (data.success && data.winRates) {
+          const container = document.getElementById('winRatesList');
+          container.innerHTML = '';
+
+          Object.values(data.winRates).forEach(g => {
+            const card = document.createElement('div');
+            card.className = 'p-5 bg-slate-900 border border-slate-800 hover:border-amber-500/40 rounded-2xl space-y-4 shadow-xl transition-all';
+            card.innerHTML = \`
+              <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div>
+                  <span class="text-[10px] font-bold tracking-widest text-amber-400 uppercase bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">\${g.provider} · \${g.category.toUpperCase()}</span>
+                  <h3 class="text-sm font-bold text-white mt-1">\${g.gameName}</h3>
+                </div>
+                <div class="text-right">
+                  <span class="text-xs text-slate-500 block font-mono">ID: \${g.gameId}</span>
+                  <span class="text-xs font-bold \${g.winRate >= 98 ? 'text-emerald-400' : g.winRate <= 90 ? 'text-red-400' : 'text-amber-400'} font-mono">
+                    RTP: \${g.winRate}%
+                  </span>
+                </div>
+              </div>
+
+              <form onsubmit="submitWinRateUpdate(event, '\${g.gameId}')" class="space-y-3 text-xs">
+                <div>
+                  <div class="flex justify-between text-slate-400 mb-1">
+                    <label class="font-semibold">Win Rate (RTP %)</label>
+                    <span id="rateLabel_\${g.gameId}" class="font-mono text-amber-300 font-bold">\${g.winRate}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50"
+                    max="100"
+                    step="0.5"
+                    value="\${g.winRate}"
+                    id="winRate_\${g.gameId}"
+                    oninput="document.getElementById('rateLabel_\${g.gameId}').textContent = this.value + '%'"
+                    class="w-full accent-amber-400 cursor-pointer"
+                  />
+                  <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-0.5">
+                    <span>50% (Hard)</span>
+                    <span>97.6% (Standard)</span>
+                    <span>100% (Sure Win)</span>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-[11px] text-slate-400 block mb-1">Payout Multiplier</label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      min="0.2"
+                      max="3.0"
+                      value="\${g.payoutMultiplier}"
+                      id="multiplier_\${g.gameId}"
+                      class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-[11px] text-slate-400 block mb-1">Wild Bonus Rate (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value="\${g.wildBonusRate}"
+                      id="wildRate_\${g.gameId}"
+                      class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400"
+                    />
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-[11px] text-slate-400 block mb-1">Free Spin Rate (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value="\${g.freeSpinRate}"
+                      id="freeSpinRate_\${g.gameId}"
+                      class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-[11px] text-slate-400 block mb-1">Rig / Volatility Mode</label>
+                    <select id="rigMode_\${g.gameId}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-amber-400 font-bold text-xs focus:border-amber-400">
+                      <option value="BALANCED" \${g.rigMode === 'BALANCED' ? 'selected' : ''}>Balanced (Normal)</option>
+                      <option value="HIGH_PAYOUT" \${g.rigMode === 'HIGH_PAYOUT' ? 'selected' : ''}>High Payout (Easy)</option>
+                      <option value="LOW_PAYOUT" \${g.rigMode === 'LOW_PAYOUT' ? 'selected' : ''}>Low Payout (House Favored)</option>
+                      <option value="JACKPOT_HUNT" \${g.rigMode === 'JACKPOT_HUNT' ? 'selected' : ''}>Jackpot Hunt (Crazy Big Wins)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div id="feedback_\${g.gameId}" class="hidden p-2 rounded text-[11px]"></div>
+
+                <button
+                  type="submit"
+                  class="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 shadow transition-all"
+                >
+                  I-Save ang Bagong Win Rate
+                </button>
+              </form>
+            \`;
+            container.appendChild(card);
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function submitWinRateUpdate(e, gameId) {
+      e.preventDefault();
+      const winRate = document.getElementById('winRate_' + gameId).value;
+      const payoutMultiplier = document.getElementById('multiplier_' + gameId).value;
+      const wildBonusRate = document.getElementById('wildRate_' + gameId).value;
+      const freeSpinRate = document.getElementById('freeSpinRate_' + gameId).value;
+      const rigMode = document.getElementById('rigMode_' + gameId).value;
+      const feedback = document.getElementById('feedback_' + gameId);
+
+      try {
+        const res = await fetch('/api/admin/win-rates/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameId, winRate, payoutMultiplier, wildBonusRate, freeSpinRate, rigMode })
+        });
+        const data = await res.json();
+        feedback.className = data.success ? 'p-2 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 font-bold block text-[11px]' : 'p-2 rounded bg-red-950 border border-red-500 text-red-300 font-bold block text-[11px]';
+        feedback.textContent = data.message;
+        setTimeout(() => {
+          feedback.className = 'hidden';
+        }, 3500);
+      } catch (err) {
+        feedback.className = 'p-2 rounded bg-red-950 border border-red-500 text-red-300 font-bold block text-[11px]';
+        feedback.textContent = 'Failed to save win rate settings.';
+      }
+    }
 
     async function sendMetaTestEvent() {
       try {

@@ -93,3 +93,16 @@ export interface VIPTier {
   birthdayGift: string;
   upgradeBonus: string;
 }
+
+export interface GameWinRateConfig {
+  gameId: string;
+  gameName: string;
+  provider: string;
+  category: string;
+  winRate: number; // 0 to 100 percentage
+  payoutMultiplier: number;
+  wildBonusRate: number;
+  freeSpinRate: number;
+  rigMode: 'BALANCED' | 'HIGH_PAYOUT' | 'LOW_PAYOUT' | 'JACKPOT_HUNT';
+  updatedAt: string;
+}

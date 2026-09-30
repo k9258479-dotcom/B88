@@ -1,5 +1,13 @@
 import { CardSymbol, GridCard, WinLine } from '../types/game';
 
+export interface GameWinRateConfig {
+  winRate: number; // 0 to 100 percentage
+  payoutMultiplier?: number;
+  wildBonusRate?: number; // e.g. 8 (percent)
+  freeSpinRate?: number; // e.g. 3 (percent)
+  rigMode?: 'BALANCED' | 'HIGH_PAYOUT' | 'LOW_PAYOUT' | 'JACKPOT_HUNT';
+}
+
 export const MULTIPLIERS = [1, 2, 3, 5] as const;
 export const FREE_MULTIPLIERS = [2, 4, 6, 10] as const;
 
@@ -13,22 +21,49 @@ export const SYMBOL_PAYOUTS: Record<CardSymbol, { [count: number]: number }> = {
   SCATTER: { 3: 2.0, 4: 5.0, 5: 10.0 },
 };
 
-// Generate an individual card symbol with weighted odds
-export function getRandomSymbol(colIndex: number): { symbol: CardSymbol; isGolden: boolean } {
+// Generate an individual card symbol with weighted odds modulated by dynamic win rate config
+export function getRandomSymbol(colIndex: number, config?: GameWinRateConfig): { symbol: CardSymbol; isGolden: boolean } {
   const rand = Math.random();
   let symbol: CardSymbol = 'J';
 
-  if (rand < 0.03) {
+  // Base frequencies
+  const winRate = config?.winRate !== undefined ? config.winRate : 97.6;
+  const rigMode = config?.rigMode || 'BALANCED';
+
+  // Adjust probabilities according to win rate & rigMode
+  // Default: scatter 3%, wild 5%
+  let scatterOdds = (config?.freeSpinRate !== undefined ? config.freeSpinRate : 3) / 100;
+  let wildOdds = (config?.wildBonusRate !== undefined ? config.wildBonusRate : 8) / 100;
+
+  if (rigMode === 'HIGH_PAYOUT') {
+    scatterOdds = Math.max(scatterOdds, 0.06);
+    wildOdds = Math.max(wildOdds, 0.14);
+  } else if (rigMode === 'LOW_PAYOUT') {
+    scatterOdds = Math.min(scatterOdds, 0.015);
+    wildOdds = Math.min(wildOdds, 0.03);
+  } else if (rigMode === 'JACKPOT_HUNT') {
+    scatterOdds = Math.max(scatterOdds, 0.08);
+    wildOdds = Math.max(wildOdds, 0.16);
+  }
+
+  // Factor winRate scale
+  const rtpFactor = winRate / 97.6;
+  wildOdds = Math.min(0.35, wildOdds * rtpFactor);
+
+  const scatterThreshold = scatterOdds;
+  const wildThreshold = scatterThreshold + wildOdds;
+
+  if (rand < scatterThreshold) {
     symbol = 'SCATTER';
-  } else if (rand < 0.08) {
+  } else if (rand < wildThreshold) {
     symbol = 'WILD';
-  } else if (rand < 0.28) {
+  } else if (rand < wildThreshold + 0.20) {
     symbol = 'SPADE';
-  } else if (rand < 0.50) {
+  } else if (rand < wildThreshold + 0.42) {
     symbol = 'J';
-  } else if (rand < 0.70) {
+  } else if (rand < wildThreshold + 0.62) {
     symbol = 'Q';
-  } else if (rand < 0.88) {
+  } else if (rand < wildThreshold + 0.80) {
     symbol = 'K';
   } else {
     symbol = 'A';
@@ -37,7 +72,9 @@ export function getRandomSymbol(colIndex: number): { symbol: CardSymbol; isGolde
   // Golden cards appear only on reels 2, 3, 4 (0-indexed 1, 2, 3) and cannot be Scatter or Wild
   let isGolden = false;
   if (colIndex >= 1 && colIndex <= 3 && symbol !== 'SCATTER' && symbol !== 'WILD') {
-    isGolden = Math.random() < 0.25;
+    // Higher win rate gives higher golden transformation chance
+    const goldenProb = Math.min(0.60, 0.25 * rtpFactor);
+    isGolden = Math.random() < goldenProb;
   }
 
   return { symbol, isGolden };
@@ -91,12 +128,12 @@ export function getInitialGrid(): GridCard[][] {
 }
 
 // Generate a brand new random grid
-export function generateRandomGrid(): GridCard[][] {
+export function generateRandomGrid(config?: GameWinRateConfig): GridCard[][] {
   const grid: GridCard[][] = [];
   for (let c = 0; c < 5; c++) {
     const col: GridCard[] = [];
     for (let r = 0; r < 4; r++) {
-      const { symbol, isGolden } = getRandomSymbol(c);
+      const { symbol, isGolden } = getRandomSymbol(c, config);
       col.push({
         id: `c${c}-r${r}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         symbol,
@@ -109,7 +146,12 @@ export function generateRandomGrid(): GridCard[][] {
 }
 
 // Find winning ways in the grid (1024 ways: matching symbols on reels 1 -> 2 -> 3...)
-export function evaluateWins(grid: GridCard[][], bet: number, multiplier: number): {
+export function evaluateWins(
+  grid: GridCard[][],
+  bet: number,
+  multiplier: number,
+  config?: GameWinRateConfig
+): {
   winLines: WinLine[];
   winningCells: Set<string>;
   totalPayout: number;
@@ -117,6 +159,7 @@ export function evaluateWins(grid: GridCard[][], bet: number, multiplier: number
   const winLines: WinLine[] = [];
   const winningCells = new Set<string>();
   let totalPayout = 0;
+  const payoutMultiplier = config?.payoutMultiplier !== undefined ? config.payoutMultiplier : 1.0;
 
   const targetSymbols: CardSymbol[] = ['A', 'K', 'Q', 'J', 'SPADE'];
 
@@ -152,7 +195,7 @@ export function evaluateWins(grid: GridCard[][], bet: number, multiplier: number
       });
 
       const basePayout = SYMBOL_PAYOUTS[sym][count] || 0;
-      const linePayout = basePayout * bet * ways * multiplier;
+      const linePayout = +(basePayout * bet * ways * multiplier * payoutMultiplier).toFixed(3);
 
       totalPayout += linePayout;
       winLines.push({
@@ -178,7 +221,7 @@ export function evaluateWins(grid: GridCard[][], bet: number, multiplier: number
   }
 
   if (scatterCount >= 3) {
-    const scatterPayout = (SYMBOL_PAYOUTS.SCATTER[Math.min(scatterCount, 5)] || 2.0) * bet;
+    const scatterPayout = +((SYMBOL_PAYOUTS.SCATTER[Math.min(scatterCount, 5)] || 2.0) * bet * payoutMultiplier).toFixed(3);
     totalPayout += scatterPayout;
     scatterCells.forEach(cell => winningCells.add(`${cell.col}-${cell.row}`));
     winLines.push({
@@ -199,7 +242,8 @@ export function evaluateWins(grid: GridCard[][], bet: number, multiplier: number
 // 3. Remaining cards drop down, new cards spawn at top
 export function cascadeGrid(
   currentGrid: GridCard[][],
-  winningCellCoords: Set<string>
+  winningCellCoords: Set<string>,
+  config?: GameWinRateConfig
 ): { nextGrid: GridCard[][]; goldenWildsCreated: number } {
   const nextGrid: GridCard[][] = [];
   let goldenWildsCreated = 0;
@@ -233,7 +277,7 @@ export function cascadeGrid(
     const needed = 4 - survivingCards.length;
     const newCards: GridCard[] = [];
     for (let i = 0; i < needed; i++) {
-      const { symbol, isGolden } = getRandomSymbol(c);
+      const { symbol, isGolden } = getRandomSymbol(c, config);
       newCards.push({
         id: `spawn-${c}-${i}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         symbol,

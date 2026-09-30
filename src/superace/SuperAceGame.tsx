@@ -12,7 +12,9 @@ import {
   cascadeGrid,
   MULTIPLIERS,
   FREE_MULTIPLIERS,
+  GameWinRateConfig,
 } from './utils/gameLogic';
+import { api } from '../services/api';
 import { sound } from './utils/audio';
 import { MultiplierBar } from './components/MultiplierBar';
 import { JackpotTiers } from './components/JackpotTiers';
@@ -117,6 +119,26 @@ export function SuperAceGame({
   ]);
 
   const isFreeGame = freeSpinsLeft > 0;
+  const [winRateConfig, setWinRateConfig] = useState<GameWinRateConfig>({
+    winRate: 97.6,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 8,
+    freeSpinRate: 3,
+    rigMode: 'BALANCED',
+  });
+
+  // Fetch backend win rate setting for Super Ace on mount
+  useEffect(() => {
+    async function loadWinRate() {
+      try {
+        const config = await api.getGameWinRate('super_ace');
+        if (config) {
+          setWinRateConfig(config);
+        }
+      } catch {}
+    }
+    loadWinRate();
+  }, []);
   const isSpinningRef = useRef(isSpinning);
   isSpinningRef.current = isSpinning;
 
@@ -189,7 +211,8 @@ export function SuperAceGame({
     const { winLines, winningCells: winningSet, totalPayout } = evaluateWins(
       currentGrid,
       bet,
-      currentMultiplier
+      currentMultiplier,
+      winRateConfig
     );
 
     if (winLines.length === 0) {
@@ -211,7 +234,7 @@ export function SuperAceGame({
     await new Promise(r => setTimeout(r, highlightDelay));
 
     // Cascade grid: golden cards transform to wilds, others vanish
-    const { nextGrid, goldenWildsCreated } = cascadeGrid(currentGrid, winningSet);
+    const { nextGrid, goldenWildsCreated } = cascadeGrid(currentGrid, winningSet, winRateConfig);
     if (goldenWildsCreated > 0) {
       sound.playGoldenTransform();
     }
@@ -261,7 +284,7 @@ export function SuperAceGame({
     // Spin animation for each column
     setSpinningCols([true, true, true, true, true]);
 
-    const newTargetGrid = generateRandomGrid();
+    const newTargetGrid = generateRandomGrid(winRateConfig);
     const initialSpinDuration = isTurbo ? 200 : 450;
     const colStopDelay = isTurbo ? 90 : 200;
 
@@ -365,6 +388,7 @@ export function SuperAceGame({
     isAuto,
     autoCount,
     multiplierIndex,
+    winRateConfig,
     onBalanceUpdate,
     onOpenCashier,
   ]);
