@@ -52,7 +52,31 @@ export default function App() {
   const [vipOpen, setVipOpen] = useState(false);
 
   // Active Interactive Game
-  const [activeGame, setActiveGame] = useState<GameItem | null>(null);
+  const [activeGame, setActiveGame] = useState<GameItem | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const gameParam = params.get('game');
+      if (gameParam === 'super_ace' || gameParam === 'superace' || gameParam === 'super-ace') {
+        return GAMES_CATALOG[0];
+      }
+    }
+    return null;
+  });
+
+  // Listen to browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const gameParam = params.get('game');
+      if (gameParam === 'super_ace' || gameParam === 'superace' || gameParam === 'super-ace') {
+        setActiveGame(GAMES_CATALOG[0]);
+      } else {
+        setActiveGame(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Initial Data Fetching from fullstack Express backend
   useEffect(() => {
@@ -122,6 +146,19 @@ export default function App() {
   const handleLaunchGame = (game: GameItem) => {
     sounds.playClick();
     setActiveGame(game);
+    // Push clean game URL: ?game=super_ace
+    const url = new URL(window.location.href);
+    url.searchParams.set('game', 'super_ace');
+    window.history.pushState({ game: 'super_ace' }, '', url.toString());
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCloseGame = () => {
+    sounds.playClick();
+    setActiveGame(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('game');
+    window.history.pushState({}, '', url.toString());
   };
 
   // Filtered games catalog
@@ -139,6 +176,15 @@ export default function App() {
     return matchesCategory && matchesProvider && matchesSearch;
   });
 
+  // Synchronize document title with active game
+  useEffect(() => {
+    if (activeGame) {
+      document.title = `${activeGame.title} - Bet88 Gaming`;
+    } else {
+      document.title = 'Bet88 Gaming Platform - Online Casino & Arcade';
+    }
+  }, [activeGame]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-amber-500 selection:text-slate-950 font-sans">
       {/* Top 1-row 3-zone Header Contract */}
@@ -154,89 +200,118 @@ export default function App() {
           sounds.playClick();
           setPromosOpen(true);
         }}
-        onSelectCategory={setActiveCategory}
+        onSelectCategory={(cat) => {
+          if (cat === 'slots') {
+            handleLaunchGame(GAMES_CATALOG[0]);
+          } else {
+            if (activeGame) handleCloseGame();
+            setActiveCategory(cat);
+          }
+        }}
         activeCategory={activeCategory}
         onLogout={handleLogout}
       />
 
-      {/* Main Viewport Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
-        {/* Active Playable Game Area (When a game is launched) */}
-        {activeGame && (
-          <div className="mb-10 animate-fadeIn flex justify-center">
-            <SuperAceGame
-              userBalance={user.balance}
-              onBalanceUpdate={handleBalanceUpdate}
-              onClose={() => setActiveGame(null)}
-              onOpenCashier={() => handleOpenCashier('deposit')}
-            />
+      {/* When Game is Active: Direct Full Game Page Experience */}
+      {activeGame ? (
+        <div className="flex-1 w-full bg-black flex flex-col items-center justify-start py-2 sm:py-6 px-1 sm:px-4 animate-fadeIn">
+          {/* Top Game Navigation Breadcrumb Bar */}
+          <div className="w-full max-w-[440px] flex items-center justify-between px-3 py-2 bg-slate-900/90 rounded-2xl border border-amber-500/20 mb-3 shadow-lg">
+            <button
+              onClick={handleCloseGame}
+              className="flex items-center gap-1.5 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800"
+            >
+              <span>←</span>
+              <span>Bumalik sa Lobby</span>
+            </button>
+            <div className="text-right flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">Balanse:</span>
+              <span className="text-xs font-bold text-emerald-400 font-mono">
+                ₱{user.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </span>
+              <button
+                onClick={() => handleOpenCashier('deposit')}
+                className="px-2 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[10px] uppercase hover:brightness-110"
+              >
+                + Cash In
+              </button>
+            </div>
           </div>
-        )}
 
-        {/* Hero Promotional Banner (shown when no game active or in lobby) */}
-        {!activeGame && (
+          {/* Super Ace Interactive Game View */}
+          <SuperAceGame
+            userBalance={user.balance}
+            onBalanceUpdate={handleBalanceUpdate}
+            onClose={handleCloseGame}
+            onOpenCashier={() => handleOpenCashier('deposit')}
+          />
+        </div>
+      ) : (
+        /* When No Game Active: Main Lobby View */
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+          {/* Hero Promotional Banner */}
           <BannerCarousel
             onPlaySlot={() => handleLaunchGame(GAMES_CATALOG[0])}
             onOpenCashier={() => handleOpenCashier('deposit')}
             onOpenPromos={() => setPromosOpen(true)}
           />
-        )}
 
-        {/* Top Provider Bar */}
-        <ProviderBar
-          selectedProvider={selectedProvider}
-          onSelectProvider={setSelectedProvider}
-        />
+          {/* Top Provider Bar */}
+          <ProviderBar
+            selectedProvider={selectedProvider}
+            onSelectProvider={setSelectedProvider}
+          />
 
-        {/* Category Navigation & Search Bar */}
-        <CategoryNav
-          activeCategory={activeCategory}
-          onSelectCategory={setActiveCategory}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
+          {/* Category Navigation & Search Bar */}
+          <CategoryNav
+            activeCategory={activeCategory}
+            onSelectCategory={setActiveCategory}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
 
-        {/* Games Grid Section */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm sm:text-base font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <span className="w-1.5 h-4 bg-amber-400 rounded-full" />
-              {activeCategory === 'all'
-                ? 'Popular Casino Games'
-                : `${activeCategory.toUpperCase()} COLLECTION`}
-            </h2>
-            <span className="text-xs text-slate-500 font-mono">
-              Showing {filteredGames.length} Games
-            </span>
-          </div>
-
-          {filteredGames.length === 0 ? (
-            <div className="text-center py-16 bg-slate-900/50 border border-slate-800 rounded-2xl">
-              <p className="text-sm text-slate-400">No games found matching your search filter.</p>
-              <button
-                onClick={() => {
-                  setActiveCategory('all');
-                  setSelectedProvider('ALL');
-                  setSearchQuery('');
-                }}
-                className="mt-3 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold rounded-xl"
-              >
-                Reset Filters
-              </button>
+          {/* Games Grid Section */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm sm:text-base font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                <span className="w-1.5 h-4 bg-amber-400 rounded-full" />
+                {activeCategory === 'all'
+                  ? 'Popular Casino Games'
+                  : `${activeCategory.toUpperCase()} COLLECTION`}
+              </h2>
+              <span className="text-xs text-slate-500 font-mono">
+                Showing {filteredGames.length} Games
+              </span>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
-              {filteredGames.map(game => (
-                <GameCard
-                  key={game.id}
-                  game={game}
-                  onPlay={handleLaunchGame}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
+
+            {filteredGames.length === 0 ? (
+              <div className="text-center py-16 bg-slate-900/50 border border-slate-800 rounded-2xl">
+                <p className="text-sm text-slate-400">No games found matching your search filter.</p>
+                <button
+                  onClick={() => {
+                    setActiveCategory('all');
+                    setSelectedProvider('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="mt-3 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-bold rounded-xl"
+                >
+                  Reset Filters
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+                {filteredGames.map(game => (
+                  <GameCard
+                    key={game.id}
+                    game={game}
+                    onPlay={handleLaunchGame}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
 
       {/* Footer with PAGCOR & 21+ Disclaimers */}
       <Footer />
