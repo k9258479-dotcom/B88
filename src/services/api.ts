@@ -811,5 +811,19 @@ export const api = {
         { level: 5, name: 'Diamond Royal King', pointsReq: 100000, dailyRebate: '1.5%', birthdayGift: '₱8,888', upgradeBonus: '₱8,888' },
       ]
     };
+  },
+
+  // Direct balance updater for gameplay synchronization (e.g. Super Ace)
+  async updateUserBalance(newBalance: number): Promise<void> {
+    const user = getLocalItem<UserProfile | null>('currentUser', null);
+    if (!user) return;
+    user.balance = Math.round(newBalance * 1000) / 1000;
+    setLocalItem('currentUser', user);
+
+    if (user.phone) {
+      try {
+        await updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
+      } catch {}
+    }
   }
 };

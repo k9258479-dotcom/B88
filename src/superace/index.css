@@ -57,15 +57,12 @@
 .shadow-gold-glow {
   box-shadow: 0 0 15px rgba(255, 215, 0, 0.7), inset 0 0 8px rgba(255, 255, 255, 0.6);
 }
-
 .shadow-neon-blue {
   box-shadow: 0 0 10px #00d2ff, inset 0 0 4px #00d2ff;
 }
-
 .shadow-neon-green {
   box-shadow: 0 0 10px #00ff66, inset 0 0 4px #00ff66;
 }
-
 .shadow-neon-purple {
   box-shadow: 0 0 12px #ff00ff, 0 0 5px #ffffff;
 }
@@ -90,7 +87,7 @@
   animation: winPop 0.4s ease-in-out;
 }
 
-/* Scroll down animation */
+/* Scroll down animation (nag scroldown pababa) */
 @keyframes reelScrollDown {
   0% {
     transform: translateY(-50%);

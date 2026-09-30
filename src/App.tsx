@@ -4,10 +4,7 @@ import { BannerCarousel } from './components/BannerCarousel';
 import { ProviderBar } from './components/ProviderBar';
 import { CategoryNav } from './components/CategoryNav';
 import { GameCard } from './components/GameCard';
-import { SlotMachineGame } from './components/games/SlotMachineGame';
-import { CrashGame } from './components/games/CrashGame';
-import { DiamondMinesGame } from './components/games/DiamondMinesGame';
-import { ColorGame } from './components/games/ColorGame';
+import { SuperAceGame } from './superace/SuperAceGame';
 import { CashierModal } from './components/CashierModal';
 import { AuthModal } from './components/AuthModal';
 import { PromotionsModal } from './components/PromotionsModal';
@@ -96,6 +93,7 @@ export default function App() {
 
   const handleBalanceUpdate = (newBal: number) => {
     setUser(prev => ({ ...prev, balance: newBal }));
+    api.updateUserBalance(newBal);
   };
 
   const handleOpenCashier = (tab: 'deposit' | 'withdraw' | 'history' = 'deposit') => {
@@ -165,59 +163,13 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
         {/* Active Playable Game Area (When a game is launched) */}
         {activeGame && (
-          <div className="mb-10 animate-fadeIn">
-            {activeGame.id === 'game_golden_dragon' || activeGame.category === 'slots' ? (
-              <SlotMachineGame
-                userBalance={user.balance}
-                onBalanceUpdate={handleBalanceUpdate}
-                onClose={() => setActiveGame(null)}
-                onOpenCashier={() => handleOpenCashier('deposit')}
-              />
-            ) : activeGame.id === 'game_rocket_crash' ? (
-              <CrashGame
-                userBalance={user.balance}
-                onBalanceUpdate={handleBalanceUpdate}
-                onClose={() => setActiveGame(null)}
-                onOpenCashier={() => handleOpenCashier('deposit')}
-              />
-            ) : activeGame.id === 'game_diamond_mines' ? (
-              <DiamondMinesGame
-                userBalance={user.balance}
-                onBalanceUpdate={handleBalanceUpdate}
-                onClose={() => setActiveGame(null)}
-                onOpenCashier={() => handleOpenCashier('deposit')}
-              />
-            ) : activeGame.id === 'game_perya_color' || activeGame.category === 'perya' ? (
-              <ColorGame
-                userBalance={user.balance}
-                onBalanceUpdate={handleBalanceUpdate}
-                onClose={() => setActiveGame(null)}
-                onOpenCashier={() => handleOpenCashier('deposit')}
-              />
-            ) : (
-              /* Fallback Live Table Game Runner */
-              <div className="p-8 bg-slate-900 border border-amber-500/30 rounded-2xl text-center space-y-4 max-w-2xl mx-auto shadow-2xl">
-                <span className="text-5xl">🃏</span>
-                <h3 className="text-xl font-bold text-amber-400">{activeGame.title}</h3>
-                <p className="text-xs text-slate-300">
-                  {activeGame.provider} Live Dealer Table is actively streaming. Virtual chips ready.
-                </p>
-                <div className="flex justify-center gap-3">
-                  <button
-                    onClick={() => setActiveGame(GAMES_CATALOG[0])}
-                    className="px-5 py-2.5 bg-amber-500 text-slate-950 font-bold rounded-xl text-xs uppercase"
-                  >
-                    Play Super Golden Fortune
-                  </button>
-                  <button
-                    onClick={() => setActiveGame(null)}
-                    className="px-5 py-2.5 bg-slate-800 text-slate-300 font-bold rounded-xl text-xs"
-                  >
-                    Back to Lobby
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="mb-10 animate-fadeIn flex justify-center">
+            <SuperAceGame
+              userBalance={user.balance}
+              onBalanceUpdate={handleBalanceUpdate}
+              onClose={() => setActiveGame(null)}
+              onOpenCashier={() => handleOpenCashier('deposit')}
+            />
           </div>
         )}
 

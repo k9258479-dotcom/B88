@@ -56,31 +56,7 @@ export const Header: React.FC<HeaderProps> = ({
                 activeCategory === 'slots' ? 'text-amber-400' : ''
               }`}
             >
-              Slots
-            </button>
-            <button
-              onClick={() => onSelectCategory('live')}
-              className={`hover:text-amber-400 transition-colors whitespace-nowrap ${
-                activeCategory === 'live' ? 'text-amber-400' : ''
-              }`}
-            >
-              Live Casino
-            </button>
-            <button
-              onClick={() => onSelectCategory('crash')}
-              className={`hover:text-amber-400 transition-colors whitespace-nowrap ${
-                activeCategory === 'crash' ? 'text-amber-400' : ''
-              }`}
-            >
-              Crash & Mines
-            </button>
-            <button
-              onClick={() => onSelectCategory('perya')}
-              className={`hover:text-amber-400 transition-colors whitespace-nowrap ${
-                activeCategory === 'perya' ? 'text-amber-400' : ''
-              }`}
-            >
-              Peryahan
+              Super Ace Slot
             </button>
             <button
               onClick={onOpenPromos}

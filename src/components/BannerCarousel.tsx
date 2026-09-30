@@ -52,7 +52,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
           </h1>
 
           <p className="text-xs sm:text-sm text-slate-300 mt-2 max-w-lg leading-relaxed">
-            Experience Philippines’ leading casino platform. Play JILI dragon slots, live tables, Rocket crash, and classic fiesta peryahan games.
+            Experience Philippines’ leading casino platform. Play JILI Super Ace slot with cascading reels, golden wild cards, multipliers up to 10x, and massive jackpots!
           </p>
 
           {/* Action CTAs */}
@@ -64,7 +64,7 @@ export const BannerCarousel: React.FC<BannerCarouselProps> = ({
               }}
               className="px-6 py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 shadow-lg shadow-amber-500/25 transition-all flex items-center gap-2"
             >
-              <span>Play Golden Fortune</span>
+              <span>Play Super Ace Slot</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 

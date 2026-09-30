@@ -7,14 +7,8 @@ interface ProviderBarProps {
 }
 
 const PROVIDERS = [
-  { id: 'ALL', name: 'All Providers', badge: '500+ Games' },
-  { id: 'JILI', name: 'JILI Gaming', badge: 'Top Slots' },
-  { id: 'PG Soft', name: 'PG Soft', badge: 'Mobile Hits' },
-  { id: 'Pragmatic Play', name: 'Pragmatic Play', badge: 'Drops & Wins' },
-  { id: 'Fa Chai', name: 'Fa Chai', badge: 'Asian Classic' },
-  { id: 'Spribe', name: 'Spribe', badge: 'Crash Turbo' },
-  { id: 'Evolution', name: 'Evolution', badge: 'Live Tables' },
-  { id: 'Perya', name: 'Pinoy Perya', badge: 'Fiesta 24/7' },
+  { id: 'ALL', name: 'All Providers', badge: 'Featured' },
+  { id: 'JILI', name: 'JILI Gaming', badge: 'Super Ace' },
 ];
 
 export const ProviderBar: React.FC<ProviderBarProps> = ({
