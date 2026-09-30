@@ -81,7 +81,10 @@ export const Footer: React.FC = () => {
             <span>·</span>
             <a href="#" className="hover:text-slate-300">Privacy Policy</a>
             <span>·</span>
-            <a href="#" className="hover:text-slate-300">Responsible Gaming</a>
+            <a href="/admin" className="text-amber-500/80 hover:text-amber-400 font-bold flex items-center gap-1">
+              <span>🛡️</span>
+              <span>Admin Portal</span>
+            </a>
           </div>
         </div>
       </div>
