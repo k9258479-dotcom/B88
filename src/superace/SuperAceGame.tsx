@@ -127,7 +127,7 @@ export function SuperAceGame({
     rigMode: 'BALANCED',
   });
 
-  // Fetch backend win rate setting for Super Ace on mount
+  // Fetch backend win rate setting for Super Ace on mount and on storage events
   useEffect(() => {
     async function loadWinRate() {
       try {
@@ -138,6 +138,14 @@ export function SuperAceGame({
       } catch {}
     }
     loadWinRate();
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'bet88_game_win_rates') {
+        loadWinRate();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
   const isSpinningRef = useRef(isSpinning);
   isSpinningRef.current = isSpinning;
@@ -202,8 +210,17 @@ export function SuperAceGame({
   const runCascades = async (
     currentGrid: GridCard[][],
     stepIndex: number,
-    accumulatedWin: number
+    accumulatedWin: number,
+    activeConfig: GameWinRateConfig
   ): Promise<{ finalGrid: GridCard[][]; totalWin: number }> => {
+    // If in low win rate or low payout mode, cap cascade chaining to 2 steps
+    const isTight = (activeConfig.winRate !== undefined && activeConfig.winRate < 65) || activeConfig.rigMode === 'LOW_PAYOUT';
+    const maxCascadeSteps = isTight ? 2 : 5;
+    if (stepIndex >= maxCascadeSteps) {
+      setWinningCells(new Set());
+      return { finalGrid: currentGrid, totalWin: accumulatedWin };
+    }
+
     const steps = isFreeGame ? FREE_MULTIPLIERS : MULTIPLIERS;
     const currentMultiplier = steps[Math.min(stepIndex, steps.length - 1)];
 
@@ -212,7 +229,7 @@ export function SuperAceGame({
       currentGrid,
       bet,
       currentMultiplier,
-      winRateConfig
+      activeConfig
     );
 
     if (winLines.length === 0) {
@@ -234,7 +251,7 @@ export function SuperAceGame({
     await new Promise(r => setTimeout(r, highlightDelay));
 
     // Cascade grid: golden cards transform to wilds, others vanish
-    const { nextGrid, goldenWildsCreated } = cascadeGrid(currentGrid, winningSet, winRateConfig);
+    const { nextGrid, goldenWildsCreated } = cascadeGrid(currentGrid, winningSet, activeConfig);
     if (goldenWildsCreated > 0) {
       sound.playGoldenTransform();
     }
@@ -247,7 +264,7 @@ export function SuperAceGame({
     await new Promise(r => setTimeout(r, tumbleDelay));
 
     // Next cascade recursion
-    return runCascades(nextGrid, stepIndex + 1, newAccumulatedWin);
+    return runCascades(nextGrid, stepIndex + 1, newAccumulatedWin, activeConfig);
   };
 
   // Main Spin Handler
@@ -263,6 +280,16 @@ export function SuperAceGame({
       }
       return;
     }
+
+    // Real-time backend sync: fetch latest win rate before spin to apply changes immediately
+    let activeConfig = winRateConfig;
+    try {
+      const freshConfig = await api.getGameWinRate('super_ace');
+      if (freshConfig) {
+        activeConfig = freshConfig;
+        setWinRateConfig(freshConfig);
+      }
+    } catch {}
 
     setIsSpinning(true);
     setCurrentWin(0);
@@ -284,7 +311,7 @@ export function SuperAceGame({
     // Spin animation for each column
     setSpinningCols([true, true, true, true, true]);
 
-    const newTargetGrid = generateRandomGrid(winRateConfig);
+    const newTargetGrid = generateRandomGrid(activeConfig);
     const initialSpinDuration = isTurbo ? 200 : 450;
     const colStopDelay = isTurbo ? 90 : 200;
 
@@ -319,7 +346,7 @@ export function SuperAceGame({
     await new Promise(r => setTimeout(r, isTurbo ? 100 : 220));
 
     // Run cascade loop
-    const { finalGrid, totalWin } = await runCascades(newTargetGrid, 0, 0);
+    const { finalGrid, totalWin } = await runCascades(newTargetGrid, 0, 0, activeConfig);
 
     // Check if 3+ Scatters appeared anywhere in the final layout to award Free Spins
     let scatterCount = 0;

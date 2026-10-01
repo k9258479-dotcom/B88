@@ -858,59 +858,7 @@ export const api = {
   },
 
   async getGameWinRate(gameId: string): Promise<GameWinRateConfig> {
-    // 1. Try Firestore direct
-    try {
-      const snap = await getDoc(doc(db, 'settings', 'game_win_rates'));
-      if (snap.exists()) {
-        const rates = snap.data();
-        if (rates[gameId]) {
-          return {
-            gameId,
-            gameName: 'Super Ace Slot',
-            provider: 'JILI',
-            category: 'slots',
-            winRate: 97.6,
-            payoutMultiplier: 1.0,
-            wildBonusRate: 8,
-            freeSpinRate: 3,
-            rigMode: 'BALANCED',
-            updatedAt: new Date().toISOString(),
-            ...rates[gameId]
-          };
-        }
-      }
-    } catch {}
-
-    // 2. Try LocalStorage (for Vercel static sync)
-    try {
-      const stored = getLocalItem<Record<string, any>>('game_win_rates', {});
-      if (stored[gameId]) {
-        return {
-          gameId,
-          gameName: 'Super Ace Slot',
-          provider: 'JILI',
-          category: 'slots',
-          winRate: 97.6,
-          payoutMultiplier: 1.0,
-          wildBonusRate: 8,
-          freeSpinRate: 3,
-          rigMode: 'BALANCED',
-          updatedAt: new Date().toISOString(),
-          ...stored[gameId]
-        };
-      }
-    } catch {}
-
-    // 3. Try Backend API
-    try {
-      const res = await fetch(`/api/games/win-rates/${gameId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.config) return data.config;
-      }
-    } catch {}
-
-    return {
+    const fallbackDefault: GameWinRateConfig = {
       gameId,
       gameName: 'Super Ace Slot',
       provider: 'JILI',
@@ -922,6 +870,48 @@ export const api = {
       rigMode: 'BALANCED',
       updatedAt: new Date().toISOString(),
     };
+
+    // 1. Try Backend API first - directly reads real-time server config!
+    try {
+      const res = await fetch(`/api/games/win-rates/${gameId}?_t=${Date.now()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.config) {
+          // Immediately update localStorage so offline/static fallback stays aligned
+          const stored = getLocalItem<Record<string, any>>('game_win_rates', {});
+          stored[gameId] = data.config;
+          setLocalItem('game_win_rates', stored);
+          return { ...fallbackDefault, ...data.config };
+        }
+      }
+    } catch {}
+
+    // 2. Try Firestore direct (for standalone Vercel / serverless deployments)
+    try {
+      const snap = await getDoc(doc(db, 'settings', 'game_win_rates'));
+      if (snap.exists()) {
+        const rates = snap.data();
+        if (rates[gameId]) {
+          return {
+            ...fallbackDefault,
+            ...rates[gameId]
+          };
+        }
+      }
+    } catch {}
+
+    // 3. Try LocalStorage (for static hosting)
+    try {
+      const stored = getLocalItem<Record<string, any>>('game_win_rates', {});
+      if (stored[gameId]) {
+        return {
+          ...fallbackDefault,
+          ...stored[gameId]
+        };
+      }
+    } catch {}
+
+    return fallbackDefault;
   },
 
   async updateGameWinRate(config: Partial<GameWinRateConfig> & { gameId: string }): Promise<{ success: boolean; message: string; config?: GameWinRateConfig }> {
