@@ -1823,6 +1823,18 @@
         freeSpinRate: 3,
         rigMode: 'BALANCED',
         updatedAt: new Date().toISOString()
+      },
+      deal_or_no_deal: {
+        gameId: 'deal_or_no_deal',
+        gameName: 'Deal or No Deal',
+        provider: 'BET88 ORIGINALS',
+        category: 'arcade',
+        winRate: 98.2,
+        payoutMultiplier: 1.0,
+        wildBonusRate: 10,
+        freeSpinRate: 0,
+        rigMode: 'BALANCED',
+        updatedAt: new Date().toISOString()
       }
     };
 
@@ -1831,11 +1843,11 @@
 
       // Try Backend API first
       try {
-        const res = await fetch('/api/games/win-rates/super_ace?_t=' + Date.now());
+        const res = await fetch('/api/admin/win-rates?_t=' + Date.now());
         if (res.ok) {
           const data = await res.json();
-          if (data.success && data.config) {
-            winRates.super_ace = data.config;
+          if (data.success && data.winRates) {
+            winRates = { ...winRates, ...data.winRates };
           }
         }
       } catch (err) {}
@@ -1845,18 +1857,18 @@
         if (window.bet88Firestore) {
           const { db, doc, getDoc } = window.bet88Firestore;
           const snap = await getDoc(doc(db, 'settings', 'game_win_rates'));
-          if (snap.exists() && snap.data().super_ace) {
-            winRates.super_ace = { ...winRates.super_ace, ...snap.data().super_ace };
+          if (snap.exists()) {
+            winRates = { ...winRates, ...snap.data() };
           }
         }
       } catch (err) {}
 
-      renderWinRateCard(winRates.super_ace);
+      const container = document.getElementById('winRatesList');
+      container.innerHTML = Object.values(winRates).map(g => createWinRateCardHtml(g)).join('');
     }
 
-    function renderWinRateCard(g) {
-      const container = document.getElementById('winRatesList');
-      container.innerHTML = `
+    function createWinRateCardHtml(g) {
+      return `
         <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4 hover:border-amber-500/40 transition-colors shadow-xl">
           <div class="flex items-center justify-between">
             <div>

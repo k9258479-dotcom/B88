@@ -9,6 +9,7 @@ interface ProviderBarProps {
 const PROVIDERS = [
   { id: 'ALL', name: 'All Providers', badge: 'Featured' },
   { id: 'JILI', name: 'JILI Gaming', badge: 'Super Ace' },
+  { id: 'BET88 ORIGINALS', name: 'Bet88 Originals', badge: 'Deal or No Deal' },
 ];
 
 export const ProviderBar: React.FC<ProviderBarProps> = ({

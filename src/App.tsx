@@ -5,6 +5,7 @@ import { ProviderBar } from './components/ProviderBar';
 import { CategoryNav } from './components/CategoryNav';
 import { GameCard } from './components/GameCard';
 import { SuperAceGame } from './superace/SuperAceGame';
+import { DealOrNoDealGame } from './dealornodeal/DealOrNoDealGame';
 import { CashierModal } from './components/CashierModal';
 import { AuthModal } from './components/AuthModal';
 import { PromotionsModal } from './components/PromotionsModal';
@@ -64,6 +65,10 @@ export default function App() {
         if (user.isLoggedIn) {
           setActiveGame(GAMES_CATALOG[0]);
         }
+      } else if (gameParam === 'deal_or_no_deal' || gameParam === 'dealornodeal' || gameParam === 'deal-or-no-deal') {
+        if (user.isLoggedIn) {
+          setActiveGame(GAMES_CATALOG[1] || GAMES_CATALOG[0]);
+        }
       } else {
         setActiveGame(null);
       }
@@ -97,7 +102,7 @@ export default function App() {
         setVipTiers(vipRes.levels);
       }
 
-      // Check URL query: ?game=super_ace
+      // Check URL query: ?game=super_ace or ?game=deal_or_no_deal
       const params = new URLSearchParams(window.location.search);
       const gameParam = params.get('game');
       if (gameParam === 'super_ace' || gameParam === 'superace' || gameParam === 'super-ace') {
@@ -106,6 +111,14 @@ export default function App() {
         } else {
           setAuthMode('register');
           setAuthNotice('Kailangan mong mag-register o mag-login muna bago makapaglaro ng Super Ace Slot!');
+          setAuthOpen(true);
+        }
+      } else if (gameParam === 'deal_or_no_deal' || gameParam === 'dealornodeal' || gameParam === 'deal-or-no-deal') {
+        if (isAuthed) {
+          setActiveGame(GAMES_CATALOG[1] || GAMES_CATALOG[0]);
+        } else {
+          setAuthMode('register');
+          setAuthNotice('Kailangan mong mag-register o mag-login muna bago makapaglaro ng Deal or No Deal!');
           setAuthOpen(true);
         }
       }
@@ -163,7 +176,10 @@ export default function App() {
     handleRefreshWallet();
     // If user was trying to play game, launch it now!
     const params = new URLSearchParams(window.location.search);
-    if (params.get('game')) {
+    const gameParam = params.get('game');
+    if (gameParam === 'deal_or_no_deal' || gameParam === 'dealornodeal' || gameParam === 'deal-or-no-deal') {
+      setActiveGame(GAMES_CATALOG[1] || GAMES_CATALOG[0]);
+    } else if (gameParam) {
       setActiveGame(GAMES_CATALOG[0]);
     }
   };
@@ -172,14 +188,15 @@ export default function App() {
     sounds.playClick();
     // Requirement 3: Must register / log in first before playing
     if (!user.isLoggedIn) {
-      handleOpenAuth('register', 'Kailangan mong mag-register o mag-login muna bago makapaglaro ng Super Ace Slot!');
+      handleOpenAuth('register', `Kailangan mong mag-register o mag-login muna bago makapaglaro ng ${game.title}!`);
       return;
     }
     setActiveGame(game);
-    // Push clean game URL: ?game=super_ace
+    // Push clean game URL
     const url = new URL(window.location.href);
-    url.searchParams.set('game', 'super_ace');
-    window.history.pushState({ game: 'super_ace' }, '', url.toString());
+    const gameParamKey = game.id === 'game_deal_or_no_deal' ? 'deal_or_no_deal' : 'super_ace';
+    url.searchParams.set('game', gameParamKey);
+    window.history.pushState({ game: gameParamKey }, '', url.toString());
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -269,14 +286,23 @@ export default function App() {
             </div>
           </header>
 
-          {/* Super Ace Interactive Full Screen Game */}
+          {/* Interactive Full Screen Game */}
           <div className="w-full h-full flex items-center justify-center">
-            <SuperAceGame
-              userBalance={user.balance}
-              onBalanceUpdate={handleBalanceUpdate}
-              onClose={handleCloseGame}
-              onOpenCashier={() => handleOpenCashier('deposit')}
-            />
+            {activeGame.id === 'game_deal_or_no_deal' ? (
+              <DealOrNoDealGame
+                userBalance={user.balance}
+                onBalanceUpdate={handleBalanceUpdate}
+                onClose={handleCloseGame}
+                onOpenCashier={() => handleOpenCashier('deposit')}
+              />
+            ) : (
+              <SuperAceGame
+                userBalance={user.balance}
+                onBalanceUpdate={handleBalanceUpdate}
+                onClose={handleCloseGame}
+                onOpenCashier={() => handleOpenCashier('deposit')}
+              />
+            )}
           </div>
         </div>
       ) : (

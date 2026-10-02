@@ -174,7 +174,19 @@ let gameWinRates: Record<string, GameWinRateConfig> = {
     freeSpinRate: 3,
     rigMode: 'BALANCED',
     updatedAt: new Date().toISOString(),
-  }
+  },
+  deal_or_no_deal: {
+    gameId: 'deal_or_no_deal',
+    gameName: 'Deal or No Deal',
+    provider: 'BET88 ORIGINALS',
+    category: 'arcade',
+    winRate: 98.2,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 10,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
 };
 
 // Helper: Format PHP

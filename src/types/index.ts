@@ -33,12 +33,12 @@ export interface Transaction {
   rejectionReason?: string;
 }
 
-export type GameCategory = 'all' | 'slots' | 'live' | 'crash' | 'perya' | 'table' | 'fishing';
+export type GameCategory = 'all' | 'slots' | 'live' | 'crash' | 'perya' | 'table' | 'fishing' | 'arcade';
 
 export interface GameItem {
   id: string;
   title: string;
-  provider: 'JILI' | 'PG Soft' | 'Pragmatic Play' | 'Fa Chai' | 'Spribe' | 'Evolution' | 'Perya';
+  provider: 'JILI' | 'PG Soft' | 'Pragmatic Play' | 'Fa Chai' | 'Spribe' | 'Evolution' | 'Perya' | 'BET88 ORIGINALS';
   category: GameCategory;
   rtp: string;
   image: string;
