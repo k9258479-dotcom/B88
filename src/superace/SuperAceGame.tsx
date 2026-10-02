@@ -395,6 +395,9 @@ export function SuperAceGame({
       ...prev.slice(0, 19),
     ]);
 
+    // Record Turnover, Win, Loss to Firestore & Backend Analytics
+    api.recordPlayerGameSpin({ bet, win: totalWin, isFreeGame, gameId: 'super_ace' });
+
     setIsSpinning(false);
 
     // Auto Spin management
@@ -461,9 +464,9 @@ export function SuperAceGame({
   const hasClaimableMission = missions.some(m => m.completed && !m.claimed);
 
   return (
-    <div className="bg-black text-white flex justify-center items-center min-h-[820px] max-w-full select-none overflow-hidden m-0 p-0 font-ui rounded-3xl border border-amber-500/30 shadow-2xl relative">
+    <div className="w-full h-full bg-black text-white flex justify-center items-center select-none overflow-hidden m-0 p-0 font-ui relative">
       {/* Mobile Frame Container */}
-      <div className="relative w-full max-w-[440px] h-[850px] bg-[#0c0d14] flex flex-col justify-between overflow-hidden shadow-2xl border border-zinc-800">
+      <div className="relative w-full max-w-[460px] h-full max-h-[100vh] sm:max-h-[880px] bg-[#0c0d14] flex flex-col justify-between overflow-hidden shadow-2xl sm:rounded-3xl sm:border border-amber-500/30">
         {/* Deep Red Luxury Casino Curtain Background (turns royal gold in Free Spins!) */}
         <div
           className={`absolute inset-0 pointer-events-none transition-all duration-700 ${

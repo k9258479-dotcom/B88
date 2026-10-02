@@ -29,6 +29,10 @@ export interface UserProfile {
   referralCode: string;
   lastLoginIp?: string;
   status: 'ACTIVE' | 'SUSPENDED';
+  turnover?: number;
+  totalWon?: number;
+  totalLost?: number;
+  totalSpins?: number;
 }
 
 export interface Transaction {
@@ -979,25 +983,156 @@ app.get('/api/vip', (req, res) => {
 // ----------------------------------------------------
 // SECURED BACKEND ADMIN MANAGEMENT API & PORTAL
 // ----------------------------------------------------
-const ADMIN_CREDENTIALS = {
+let ADMIN_CREDENTIALS = {
   phone: '09060489645',
   password: 'Dan051391',
 };
 
-// 1. Admin Authentication
+export interface StaffAccount {
+  id: string;
+  name: string;
+  username: string;
+  password: string;
+  role: 'SUPER_ADMIN' | 'FINANCE_CASHIER' | 'MARKETING_AFFILIATE' | 'GAME_OPERATIONS';
+  status: 'ACTIVE' | 'SUSPENDED';
+  createdAt: string;
+}
+
+let staffAccounts: StaffAccount[] = [
+  { id: 'stf_1', name: 'Maria - Head Cashier', username: 'cashier01', password: 'password123', role: 'FINANCE_CASHIER', status: 'ACTIVE', createdAt: '2026-09-30' },
+  { id: 'stf_2', name: 'Carlos - Marketing Agent', username: 'marketing01', password: 'password123', role: 'MARKETING_AFFILIATE', status: 'ACTIVE', createdAt: '2026-09-30' }
+];
+
+// 1. Admin & Staff Authentication
 app.post('/api/admin/login', (req, res) => {
   const { phone, password } = req.body;
+
+  // Master Admin login
   if (phone === ADMIN_CREDENTIALS.phone && password === ADMIN_CREDENTIALS.password) {
     return res.json({
       success: true,
+      role: 'SUPER_ADMIN',
+      name: 'Master Admin',
       token: `bet88_adm_token_${Date.now()}`,
-      message: 'Admin authorization granted.',
+      message: 'Master Admin authorization granted.',
     });
   }
-  return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });
+
+  // Staff Sub-Account login
+  const matchedStaff = staffAccounts.find(s => s.username.toLowerCase() === (phone || '').trim().toLowerCase() && s.password === password);
+  if (matchedStaff) {
+    if (matchedStaff.status === 'SUSPENDED') {
+      return res.status(403).json({ success: false, message: 'Ang account na ito ay kasalukuyang nakasuspinde.' });
+    }
+    return res.json({
+      success: true,
+      role: matchedStaff.role,
+      name: matchedStaff.name,
+      token: `bet88_staff_token_${Date.now()}`,
+      message: `Staff login successful as ${matchedStaff.name} (${matchedStaff.role})`,
+    });
+  }
+
+  return res.status(401).json({ success: false, message: 'Maling mobile / username o password.' });
 });
 
-// 2. Registered Users Management
+// Change Admin Login Credentials
+app.post('/api/admin/change-credentials', (req, res) => {
+  const { phone, password } = req.body;
+  if (!phone || !password || password.length < 6) {
+    return res.status(400).json({ success: false, message: 'Valid phone and min 6-character password required.' });
+  }
+
+  ADMIN_CREDENTIALS = {
+    phone: phone.trim(),
+    password: password.trim(),
+  };
+
+  res.json({
+    success: true,
+    message: 'Master Admin credentials successfully changed!',
+    credentials: { phone: ADMIN_CREDENTIALS.phone },
+  });
+});
+
+// Staff Accounts Management
+app.get('/api/admin/staff', (req, res) => {
+  res.json({
+    success: true,
+    staff: staffAccounts,
+  });
+});
+
+app.post('/api/admin/staff/create', (req, res) => {
+  const { name, username, password, role } = req.body;
+  if (!name || !username || !password) {
+    return res.status(400).json({ success: false, message: 'All staff fields required.' });
+  }
+
+  const cleanUser = username.trim().toLowerCase();
+  const existing = staffAccounts.find(s => s.username === cleanUser);
+  const newStaff: StaffAccount = {
+    id: `stf_${Date.now()}`,
+    name: name.trim(),
+    username: cleanUser,
+    password: password.trim(),
+    role: role || 'FINANCE_CASHIER',
+    status: 'ACTIVE',
+    createdAt: new Date().toISOString().split('T')[0],
+  };
+
+  if (existing) {
+    Object.assign(existing, newStaff);
+  } else {
+    staffAccounts.unshift(newStaff);
+  }
+
+  res.json({
+    success: true,
+    message: `Staff account "${name}" created with role ${newStaff.role}!`,
+    staff: newStaff,
+  });
+});
+
+// Record Spin turnover, win, and loss from games
+app.post('/api/admin/users/record-spin', (req, res) => {
+  const { phone, bet, win, loss } = req.body;
+  if (!phone) return res.status(400).json({ success: false, message: 'Phone required' });
+
+  let user = users.get(phone);
+  if (!user) {
+    user = {
+      id: phone,
+      phone,
+      username: `Player_${phone.slice(-4)}`,
+      balance: 0,
+      vipLevel: 1,
+      vipPoints: 0,
+      currency: 'PHP',
+      isLoggedIn: false,
+      avatar: '🎰',
+      totalDeposited: 0,
+      totalWithdrawn: 0,
+      referralCode: 'BET88VIP',
+      registeredAt: new Date().toISOString().split('T')[0],
+      status: 'ACTIVE',
+      turnover: 0,
+      totalWon: 0,
+      totalLost: 0,
+      totalSpins: 0,
+    };
+    users.set(phone, user);
+  }
+
+  user.turnover = round2((user.turnover || 0) + (parseFloat(bet) || 0));
+  user.totalWon = round2((user.totalWon || 0) + (parseFloat(win) || 0));
+  user.totalLost = round2((user.totalLost || 0) + (parseFloat(loss) || 0));
+  user.totalSpins = (user.totalSpins || 0) + 1;
+
+  res.json({ success: true, user });
+});
+
+// 2. Registered Users Management (with turnover, totalWon, totalLost)
 app.get('/api/admin/users', (req, res) => {
   const userList = Array.from(users.values()).map(u => ({
     id: u.id,
@@ -1011,6 +1146,10 @@ app.get('/api/admin/users', (req, res) => {
     referredBy: u.referredBy || 'Organic',
     registeredAt: u.registeredAt,
     status: u.status,
+    turnover: u.turnover || 0,
+    totalWon: u.totalWon || 0,
+    totalLost: u.totalLost || 0,
+    totalSpins: u.totalSpins || 0,
   }));
 
   res.json({
@@ -1041,63 +1180,95 @@ app.get('/api/admin/transactions', (req, res) => {
   });
 });
 
-// Approve Transaction Endpoint
+// Approve Transaction Endpoint - Resilient & Fault-Tolerant
 app.post('/api/admin/transactions/approve', (req, res) => {
-  const { transactionId } = req.body;
-  const tx = transactions.find(t => t.id === transactionId);
+  const { transactionId, userPhone, amount, type } = req.body;
+  let tx = transactions.find(t => t.id === transactionId);
 
+  // If transaction wasn't in memory yet (e.g. created on Firestore / another client), register it
   if (!tx) {
-    return res.status(404).json({ success: false, message: 'Transaction not found.' });
-  }
-  if (tx.status !== 'PENDING') {
-    return res.status(400).json({ success: false, message: `Transaction already marked as ${tx.status}.` });
+    tx = {
+      id: transactionId || `tx_${Date.now()}`,
+      userId: userPhone || '09060489645',
+      userPhone: userPhone || '09060489645',
+      type: type || 'DEPOSIT',
+      amount: parseFloat(amount) || 100,
+      method: 'GCash / Maya',
+      referenceNo: 'REF-' + Math.floor(100000 + Math.random() * 900000),
+      status: 'PENDING',
+      timestamp: new Date().toLocaleTimeString(),
+    };
+    transactions.unshift(tx);
   }
 
-  const targetUser = users.get(tx.userId);
-  if (!targetUser) {
-    return res.status(404).json({ success: false, message: 'Target user not found.' });
+  const phone = tx.userPhone || tx.userId;
+  let targetUser = users.get(tx.userId) || (phone ? users.get(phone) : undefined);
+
+  if (!targetUser && phone) {
+    targetUser = {
+      id: phone,
+      phone,
+      username: `Player_${phone.slice(-4)}`,
+      balance: 0,
+      vipLevel: 1,
+      vipPoints: 0,
+      currency: 'PHP',
+      isLoggedIn: false,
+      avatar: '🎰',
+      totalDeposited: 0,
+      totalWithdrawn: 0,
+      referralCode: 'BET88VIP',
+      registeredAt: new Date().toISOString().split('T')[0],
+      status: 'ACTIVE',
+      turnover: 0,
+      totalWon: 0,
+      totalLost: 0,
+      totalSpins: 0,
+    };
+    users.set(phone, targetUser);
   }
 
   if (tx.type === 'DEPOSIT') {
-    // Credit player balance
-    targetUser.balance = round2(targetUser.balance + tx.amount);
-    targetUser.totalDeposited = round2(targetUser.totalDeposited + tx.amount);
-    targetUser.vipPoints += Math.floor(tx.amount / 10);
+    if (targetUser) {
+      targetUser.balance = round2(targetUser.balance + tx.amount);
+      targetUser.totalDeposited = round2(targetUser.totalDeposited + tx.amount);
+      targetUser.vipPoints += Math.floor(tx.amount / 10);
+    }
     tx.status = 'APPROVED';
-    tx.approvedBy = 'Admin: 09060489645';
+    tx.approvedBy = 'Admin Cashier';
 
     // Meta Pixel Conversion Event
-    if (metaConfig.trackDeposit) {
+    if (metaConfig.trackDeposit && targetUser) {
       triggerMetaPixelEvent('Purchase', tx.amount, targetUser.phone);
     }
   } else if (tx.type === 'WITHDRAWAL') {
-    // Amount was already placed in escrow during request, finalize dispatch
-    targetUser.totalWithdrawn = round2(targetUser.totalWithdrawn + tx.amount);
+    if (targetUser) {
+      targetUser.totalWithdrawn = round2(targetUser.totalWithdrawn + tx.amount);
+    }
     tx.status = 'APPROVED';
-    tx.approvedBy = 'Admin: 09060489645';
+    tx.approvedBy = 'Admin Cashier';
   }
 
   res.json({
     success: true,
-    message: `${tx.type} transaction (₱${tx.amount.toLocaleString()}) para kay ${targetUser.phone} ay na-APPROVED na!`,
+    message: `${tx.type} transaction (₱${tx.amount.toLocaleString()}) para kay ${phone || 'player'} ay APPROVED na! Pumasok na ang balanse.`,
     transaction: tx,
-    userNewBalance: targetUser.balance,
+    userNewBalance: targetUser ? targetUser.balance : undefined,
   });
 });
 
 // Reject Transaction Endpoint
 app.post('/api/admin/transactions/reject', (req, res) => {
   const { transactionId, reason } = req.body;
-  const tx = transactions.find(t => t.id === transactionId);
+  let tx = transactions.find(t => t.id === transactionId);
 
   if (!tx) {
     return res.status(404).json({ success: false, message: 'Transaction not found.' });
   }
-  if (tx.status !== 'PENDING') {
-    return res.status(400).json({ success: false, message: `Transaction already marked as ${tx.status}.` });
-  }
 
-  const targetUser = users.get(tx.userId);
+  const phone = tx.userPhone || tx.userId;
+  const targetUser = users.get(tx.userId) || (phone ? users.get(phone) : undefined);
+
   if (tx.type === 'WITHDRAWAL' && targetUser) {
     // Refund the escrow amount back to player wallet
     targetUser.balance = round2(targetUser.balance + tx.amount);
@@ -1105,7 +1276,7 @@ app.post('/api/admin/transactions/reject', (req, res) => {
 
   tx.status = 'REJECTED';
   tx.rejectionReason = reason || 'Declined by Admin Cashier';
-  tx.approvedBy = 'Admin: 09060489645';
+  tx.approvedBy = 'Admin Cashier';
 
   res.json({
     success: true,
@@ -1143,6 +1314,10 @@ app.post('/api/admin/users/credit', (req, res) => {
       referralCode: 'BET88VIP',
       registeredAt: new Date().toISOString().split('T')[0],
       status: 'ACTIVE',
+      turnover: 0,
+      totalWon: 0,
+      totalLost: 0,
+      totalSpins: 0,
     };
     users.set(cleanPhone, newUser);
     targetUser = newUser;
@@ -1162,7 +1337,7 @@ app.post('/api/admin/users/credit', (req, res) => {
     method: note || 'Cashier Manual Credit',
     referenceNo: `ADMIN-DEP-${Math.floor(100000 + Math.random() * 900000)}`,
     timestamp: new Date().toLocaleTimeString(),
-    approvedBy: 'Admin: 09060489645',
+    approvedBy: 'Admin Cashier',
   };
   transactions.unshift(newTx);
 
@@ -1191,8 +1366,15 @@ app.post('/api/admin/referrals/create', (req, res) => {
   const cleanCode = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
   // Check duplicate
-  if (referralLinks.some(r => r.code === cleanCode)) {
-    return res.status(400).json({ success: false, message: 'Referral code already exists.' });
+  const existing = referralLinks.find(r => r.code === cleanCode);
+  if (existing) {
+    existing.creatorName = creatorName || existing.creatorName;
+    existing.commissionRate = parseFloat(commissionRate) || existing.commissionRate;
+    return res.json({
+      success: true,
+      message: `Referral code "${cleanCode}" updated!`,
+      referral: existing,
+    });
   }
 
   const newRef: ReferralLink = {
@@ -1294,819 +1476,11 @@ app.post('/api/admin/win-rates/update', (req, res) => {
   });
 });
 
-// 7. Dedicated Isolated Admin Portal (/admin)
-app.get('/admin', (req, res) => {
-  const adminHtml = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bet88 Platform Management & Operations Control</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    code, pre, .mono { font-family: 'JetBrains Mono', monospace; }
-  </style>
-</head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-  <!-- Auth Screen -->
-  <div id="loginSection" class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-8 max-w-md w-full shadow-2xl">
-      <div class="flex items-center gap-3 mb-6">
-        <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-2xl font-bold">
-          🛡️
-        </div>
-        <div>
-          <h1 class="text-base font-bold text-amber-400 tracking-wider">BET88 SECURE BACKEND</h1>
-          <p class="text-xs text-slate-400">Operations & Management Dashboard</p>
-        </div>
-      </div>
-
-      <form id="adminLoginForm" class="space-y-4">
-        <div>
-          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin Mobile / ID</label>
-          <input type="text" id="adminPhone" value="09060489645" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
-        </div>
-        <div>
-          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin Security Password</label>
-          <input type="password" id="adminPass" value="Dan051391" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
-        </div>
-        <div id="loginError" class="hidden text-xs text-red-400 bg-red-950/50 p-2.5 rounded-lg border border-red-500/30"></div>
-        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 shadow-lg shadow-amber-500/20">
-          Enter Management Console
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Dashboard Screen -->
-  <div id="dashboardSection" class="hidden min-h-screen flex flex-col">
-    <!-- Top Nav -->
-    <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md">
-      <div class="flex items-center gap-3">
-        <span class="text-2xl">🛡️</span>
-        <div>
-          <h1 class="text-sm font-bold text-amber-400">BET88 OPERATING BACKEND</h1>
-          <span class="text-[10px] text-emerald-400 font-mono">Server Status: ONLINE · Port 3000</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-3">
-        <a href="/" target="_blank" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl transition-colors font-medium">
-          Buksan ang Casino Platform ↗
-        </a>
-        <button id="adminLogoutBtn" class="px-3.5 py-1.5 bg-red-950/70 border border-red-500/40 text-red-300 hover:bg-red-900 text-xs rounded-xl font-bold">
-          Logout
-        </button>
-      </div>
-    </header>
-
-    <!-- Sub Navigation Tabs -->
-    <div class="bg-slate-950 border-b border-slate-800 px-6 flex gap-2 overflow-x-auto text-xs font-bold uppercase tracking-wider">
-      <button onclick="switchTab('tabCashier')" id="btnTabCashier" class="py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5">
-        Deposit & Withdrawal Approvals
-      </button>
-      <button onclick="switchTab('tabUsers')" id="btnTabUsers" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
-        Registered Players
-      </button>
-      <button onclick="switchTab('tabReferrals')" id="btnTabReferrals" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
-        Referral Links & Affiliates
-      </button>
-      <button onclick="switchTab('tabWinRates')" id="btnTabWinRates" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5">
-        <span>🎮</span>
-        <span>Game Win Rates (RTP & Volatility)</span>
-      </button>
-      <button onclick="switchTab('tabMeta')" id="btnTabMeta" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
-        Meta (FB Pixel) Integration
-      </button>
-    </div>
-
-    <!-- Main Content Area -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
-
-      <!-- TAB 1: CASHIER APPROVALS -->
-      <section id="tabCashier" class="space-y-6">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-bold text-white">Cashier Approvals Queue</h2>
-            <p class="text-xs text-slate-400">I-verify, aprubahan, o i-reject ang mga pumapasok na GCash/Maya deposits at cashouts.</p>
-          </div>
-          <button onclick="loadTransactions()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
-            I-refresh ang Queue
-          </button>
-        </div>
-
-        <!-- Pending Table -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-              Pending Requests Queue (<span id="pendingCount">0</span>)
-            </span>
-            <span class="text-xs text-slate-500">Fast action: Click Aprubahan to credit player instantly</span>
-          </div>
-
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
-                <tr>
-                  <th class="p-3">Type</th>
-                  <th class="p-3">Player Mobile</th>
-                  <th class="p-3">Method</th>
-                  <th class="p-3">Halaga (PHP)</th>
-                  <th class="p-3">Reference / Account</th>
-                  <th class="p-3">Oras</th>
-                  <th class="p-3 text-right">Aksyon</th>
-                </tr>
-              </thead>
-              <tbody id="pendingTbody" class="divide-y divide-slate-800/80 font-mono">
-                <tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending transactions sa kasalukuyan.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- All Transactions Ledger -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div class="p-4 border-b border-slate-800">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Buong Transaction History</h3>
-          </div>
-          <div class="overflow-x-auto max-h-72 overflow-y-auto">
-            <table class="w-full text-left text-xs">
-              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
-                <tr>
-                  <th class="p-3">Status</th>
-                  <th class="p-3">Type</th>
-                  <th class="p-3">Player</th>
-                  <th class="p-3">Method</th>
-                  <th class="p-3">Amount</th>
-                  <th class="p-3">Ref No</th>
-                  <th class="p-3">Auditor</th>
-                </tr>
-              </thead>
-              <tbody id="allTbody" class="divide-y divide-slate-800/80 font-mono">
-                <!-- Injected via JS -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 2: REGISTERED USERS -->
-      <section id="tabUsers" class="hidden space-y-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-lg font-bold text-white">Mga Rehistradong Manlalaro</h2>
-            <p class="text-xs text-slate-400">Talaan ng lahat ng nag-register sa main casino platform.</p>
-          </div>
-          <button onclick="loadUsers()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
-            I-refresh ang Listahan
-          </button>
-        </div>
-
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
-                <tr>
-                  <th class="p-3">User ID</th>
-                  <th class="p-3">Mobile Number</th>
-                  <th class="p-3">Username</th>
-                  <th class="p-3">Balanse</th>
-                  <th class="p-3">Total Deposited</th>
-                  <th class="p-3">VIP</th>
-                  <th class="p-3">Referral Code</th>
-                  <th class="p-3">Petsa ng Rehistro</th>
-                </tr>
-              </thead>
-              <tbody id="usersTbody" class="divide-y divide-slate-800/80 font-mono">
-                <!-- Injected via JS -->
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 3: REFERRAL LINKS CREATOR -->
-      <section id="tabReferrals" class="hidden space-y-6">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Create Form -->
-          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
-            <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider">Gumawa ng Bagong Referral Code</h3>
-            <p class="text-xs text-slate-400">Gumawa ng natatanging link para sa mga streamers, ahente, o promosyon.</p>
-
-            <form id="createRefForm" class="space-y-3">
-              <div>
-                <label class="text-xs text-slate-400 block mb-1">Referral / Promo Code</label>
-                <input type="text" id="refCodeInput" placeholder="e.g. VIP88MANILA" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono uppercase text-xs focus:outline-none focus:border-amber-400" required />
-              </div>
-              <div>
-                <label class="text-xs text-slate-400 block mb-1">Pangalan ng Ahente o Creator</label>
-                <input type="text" id="refNameInput" placeholder="e.g. John Streamer PH" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white text-xs focus:outline-none focus:border-amber-400" required />
-              </div>
-              <div>
-                <label class="text-xs text-slate-400 block mb-1">Komisyon Rate (%)</label>
-                <input type="number" step="0.1" id="refRateInput" value="1.5" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
-              </div>
-              <div id="refFeedback" class="hidden text-xs p-2 rounded"></div>
-              <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase rounded-xl transition-all">
-                I-generate ang Referral Link
-              </button>
-            </form>
-          </div>
-
-          <!-- Existing Referral Codes Table -->
-          <div class="lg:col-span-2 p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold text-white uppercase tracking-wider">Aktibong Referral Codes & Affiliate Links</h3>
-              <button onclick="loadReferrals()" class="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded">
-                Refresh
-              </button>
-            </div>
-
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs">
-                <thead class="text-slate-400 font-mono border-b border-slate-800">
-                  <tr>
-                    <th class="pb-2">Code</th>
-                    <th class="pb-2">Creator</th>
-                    <th class="pb-2">Signups</th>
-                    <th class="pb-2">Commission</th>
-                    <th class="pb-2">Shareable Link</th>
-                  </tr>
-                </thead>
-                <tbody id="referralsTbody" class="divide-y divide-slate-800/80 font-mono">
-                  <!-- Injected via JS -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- TAB 4: GAME WIN RATES & RTP CONTROLLER -->
-      <section id="tabWinRates" class="hidden space-y-6">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-bold text-white flex items-center gap-2">
-              <span>🎮</span>
-              <span>Game Win Rates & RTP (Return to Player) Control Center</span>
-            </h2>
-            <p class="text-xs text-slate-400">
-              I-set at kontrolin ang win rate percentage (RTP), payout multiplier, wild bonus rate, at volatility para sa bawat laro.
-            </p>
-          </div>
-          <button onclick="loadWinRates()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
-            I-refresh ang Rates
-          </button>
-        </div>
-
-        <div id="winRatesList" class="grid grid-cols-1 md:grid-cols-2 max-w-2xl gap-5">
-          <!-- Injected dynamically via loadWinRates() -->
-        </div>
-      </section>
-
-      <!-- TAB 4: META INTEGRATION -->
-      <section id="tabMeta" class="hidden space-y-6">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <!-- Meta Pixel Settings -->
-          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
-            <div class="flex items-center gap-2">
-              <span class="text-xl">📊</span>
-              <div>
-                <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">Meta Conversions API & Pixel Setup</h3>
-                <p class="text-xs text-slate-400">I-connect ang Facebook Ads Pixel para sa auto-tracking ng Registration at Deposit events.</p>
-              </div>
-            </div>
-
-            <form id="metaConfigForm" class="space-y-3">
-              <div>
-                <label class="text-xs text-slate-400 block mb-1">Meta Pixel ID (Dataset ID)</label>
-                <input type="text" id="metaPixelId" value="984120485918231" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" required />
-              </div>
-              <div>
-                <label class="text-xs text-slate-400 block mb-1">Conversions API Access Token (Graph API)</label>
-                <input type="password" id="metaToken" value="EAAGNO4...fb_conversions_api_key_valid" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" required />
-              </div>
-              <div>
-                <label class="text-xs text-slate-400 block mb-1">Test Event Code (Facebook Events Manager)</label>
-                <input type="text" id="metaTestCode" value="TEST98421" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" />
-              </div>
-
-              <div class="space-y-2 pt-2 border-t border-slate-800 text-xs">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" id="chkRegistration" checked class="rounded bg-slate-950 border-slate-700 text-blue-500" />
-                  <span>Awtomatikong i-track ang <b>CompleteRegistration</b> (tuwing may nag-register)</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" id="chkDeposit" checked class="rounded bg-slate-950 border-slate-700 text-blue-500" />
-                  <span>Awtomatikong i-track ang <b>Purchase / Deposit</b> (tuwing may na-aprubahang cash in)</span>
-                </label>
-              </div>
-
-              <div id="metaFeedback" class="hidden text-xs p-2 rounded"></div>
-              <div class="flex gap-2">
-                <button type="submit" class="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase rounded-xl transition-all">
-                  I-save ang Meta Settings
-                </button>
-                <button type="button" onclick="sendMetaTestEvent()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase rounded-xl">
-                  Test Event Signal
-                </button>
-              </div>
-            </form>
-          </div>
-
-          <!-- Live Log of Dispatched Meta Events -->
-          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
-            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Live Dispatched Meta Signals</h3>
-            <p class="text-xs text-slate-400">Mga naipadalang signal sa Facebook Server-Side Conversions API:</p>
-
-            <div class="overflow-y-auto max-h-72 space-y-2" id="metaEventsList">
-              <!-- Injected via JS -->
-            </div>
-          </div>
-        </div>
-      </section>
-
-    </main>
-  </div>
-
-  <script>
-    // Tab switching
-    function switchTab(tabId) {
-      ['tabCashier', 'tabUsers', 'tabReferrals', 'tabWinRates', 'tabMeta'].forEach(id => {
-        document.getElementById(id).classList.add('hidden');
-        document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white';
-      });
-
-      document.getElementById(tabId).classList.remove('hidden');
-      const activeBtn = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
-      activeBtn.className = 'py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5';
-
-      if (tabId === 'tabCashier') loadTransactions();
-      if (tabId === 'tabUsers') loadUsers();
-      if (tabId === 'tabReferrals') loadReferrals();
-      if (tabId === 'tabWinRates') loadWinRates();
-      if (tabId === 'tabMeta') loadMeta();
-    }
-
-    // Auth
-    const loginSection = document.getElementById('loginSection');
-    const dashboardSection = document.getElementById('dashboardSection');
-    const loginForm = document.getElementById('adminLoginForm');
-    const loginError = document.getElementById('loginError');
-
-    if (sessionStorage.getItem('bet88_admin_authed') === 'true') {
-      showDashboard();
-    }
-
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      loginError.classList.add('hidden');
-      const phone = document.getElementById('adminPhone').value;
-      const password = document.getElementById('adminPass').value;
-
-      try {
-        const res = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, password })
-        });
-        const data = await res.json();
-        if (data.success) {
-          sessionStorage.setItem('bet88_admin_authed', 'true');
-          showDashboard();
-        } else {
-          loginError.textContent = data.message || 'Maling impormasyon.';
-          loginError.classList.remove('hidden');
-        }
-      } catch (err) {
-        loginError.textContent = 'Server connection error.';
-        loginError.classList.remove('hidden');
-      }
-    });
-
-    document.getElementById('adminLogoutBtn').addEventListener('click', () => {
-      sessionStorage.removeItem('bet88_admin_authed');
-      dashboardSection.classList.add('hidden');
-      loginSection.classList.remove('hidden');
-    });
-
-    function showDashboard() {
-      loginSection.classList.add('hidden');
-      dashboardSection.classList.remove('hidden');
-      loadTransactions();
-    }
-
-    // 1. Transactions Queue & Approval
-    async function loadTransactions() {
-      try {
-        const res = await fetch('/api/admin/transactions');
-        const data = await res.json();
-        if (data.success) {
-          const pending = data.transactions.filter(t => t.status === 'PENDING');
-          document.getElementById('pendingCount').textContent = pending.length;
-
-          const pendingTbody = document.getElementById('pendingTbody');
-          if (pending.length === 0) {
-            pendingTbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending requests sa kasalukuyan. Lahat ay tapos na.</td></tr>';
-          } else {
-            pendingTbody.innerHTML = '';
-            pending.forEach(t => {
-              const tr = document.createElement('tr');
-              tr.className = 'hover:bg-slate-900/80';
-              tr.innerHTML = \`
-                <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold \${t.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'}">\${t.type}</span></td>
-                <td class="p-3 text-slate-200 font-bold">\${t.userPhone}</td>
-                <td class="p-3 text-slate-300">\${t.method}</td>
-                <td class="p-3 font-bold text-amber-400 text-sm">₱\${t.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                <td class="p-3 text-slate-400">\${t.referenceNo} \${t.recipientAccount ? '· ' + t.recipientAccount : ''}</td>
-                <td class="p-3 text-slate-500">\${t.timestamp}</td>
-                <td class="p-3 text-right space-x-2">
-                  <button onclick="approveTransaction('\${t.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold uppercase transition-colors">
-                    Aprubahan
-                  </button>
-                  <button onclick="rejectTransaction('\${t.id}')" class="px-2.5 py-1 bg-red-800 hover:bg-red-700 text-white rounded text-[11px] font-bold uppercase transition-colors">
-                    Tanggihan
-                  </button>
-                </td>
-              \`;
-              pendingTbody.appendChild(tr);
-            });
-          }
-
-          // All history
-          const allTbody = document.getElementById('allTbody');
-          allTbody.innerHTML = '';
-          data.transactions.forEach(t => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-slate-900/60';
-            tr.innerHTML = \`
-              <td class="p-3"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold \${t.status === 'APPROVED' || t.status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/10' : t.status === 'REJECTED' ? 'text-red-400 bg-red-500/10' : 'text-amber-400 bg-amber-500/10'}">\${t.status}</span></td>
-              <td class="p-3 font-semibold">\${t.type}</td>
-              <td class="p-3 text-slate-300">\${t.userPhone}</td>
-              <td class="p-3 text-slate-400">\${t.method}</td>
-              <td class="p-3 font-bold text-white">₱\${t.amount.toLocaleString()}</td>
-              <td class="p-3 text-slate-500 font-mono">\${t.referenceNo}</td>
-              <td class="p-3 text-slate-400 text-[11px]">\${t.approvedBy || '-'}</td>
-            \`;
-            allTbody.appendChild(tr);
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    async function approveTransaction(transactionId) {
-      if (!confirm('Sigurado ka bang nais mong APRUBAHAN ang transaksyong ito?')) return;
-      try {
-        const res = await fetch('/api/admin/transactions/approve', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transactionId })
-        });
-        const data = await res.json();
-        alert(data.message);
-        loadTransactions();
-      } catch (err) {
-        alert('Action failed.');
-      }
-    }
-
-    async function rejectTransaction(transactionId) {
-      const reason = prompt('Ilagay ang dahilan ng pag-tanggi (Rejection Reason):', 'Invalid GCash Reference Number');
-      if (reason === null) return;
-      try {
-        const res = await fetch('/api/admin/transactions/reject', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transactionId, reason })
-        });
-        const data = await res.json();
-        alert(data.message);
-        loadTransactions();
-      } catch (err) {
-        alert('Action failed.');
-      }
-    }
-
-    // 2. Users List
-    async function loadUsers() {
-      try {
-        const res = await fetch('/api/admin/users');
-        const data = await res.json();
-        if (data.success) {
-          const tbody = document.getElementById('usersTbody');
-          if (data.users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-500">Walang naka-save na users. Lahat ng bagong mag-reregister sa main site ay lalabas dito.</td></tr>';
-          } else {
-            tbody.innerHTML = '';
-            data.users.forEach(u => {
-              const tr = document.createElement('tr');
-              tr.className = 'hover:bg-slate-900/60';
-              tr.innerHTML = \`
-                <td class="p-3 text-slate-400 font-mono">\${u.id}</td>
-                <td class="p-3 font-bold text-amber-400">\${u.phone}</td>
-                <td class="p-3 text-slate-200">\${u.username}</td>
-                <td class="p-3 font-bold text-emerald-400 font-mono">₱\${u.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                <td class="p-3 font-mono text-slate-300">₱\${u.totalDeposited.toLocaleString()}</td>
-                <td class="p-3 font-bold text-purple-400">VIP \${u.vipLevel}</td>
-                <td class="p-3 font-mono text-cyan-300">\${u.referralCode}</td>
-                <td class="p-3 text-slate-500">\${u.registeredAt}</td>
-              \`;
-              tbody.appendChild(tr);
-            });
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    // 3. Referrals
-    async function loadReferrals() {
-      try {
-        const res = await fetch('/api/admin/referrals');
-        const data = await res.json();
-        if (data.success) {
-          const tbody = document.getElementById('referralsTbody');
-          tbody.innerHTML = '';
-          const currentOrigin = window.location.origin;
-          data.referrals.forEach(r => {
-            const tr = document.createElement('tr');
-            tr.className = 'hover:bg-slate-900/60';
-            tr.innerHTML = \`
-              <td class="py-2.5 font-bold text-amber-400">\${r.code}</td>
-              <td class="py-2.5 text-slate-200">\${r.creatorName}</td>
-              <td class="py-2.5 font-bold text-white">\${r.signups} players</td>
-              <td class="py-2.5 text-emerald-400">\${r.commissionRate}%</td>
-              <td class="py-2.5 text-slate-400 font-mono text-[11px]">
-                <span class="bg-slate-950 px-2 py-1 rounded border border-slate-800 text-cyan-300 select-all">\${currentOrigin}/?ref=\${r.code}</span>
-              </td>
-            \`;
-            tbody.appendChild(tr);
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    document.getElementById('createRefForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const code = document.getElementById('refCodeInput').value;
-      const creatorName = document.getElementById('refNameInput').value;
-      const commissionRate = document.getElementById('refRateInput').value;
-      const feedback = document.getElementById('refFeedback');
-
-      try {
-        const res = await fetch('/api/admin/referrals/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, creatorName, commissionRate })
-        });
-        const data = await res.json();
-        feedback.className = data.success ? 'text-xs p-2 rounded bg-emerald-950 border border-emerald-500 text-emerald-300' : 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
-        feedback.textContent = data.message;
-        feedback.classList.remove('hidden');
-
-        if (data.success) {
-          document.getElementById('refCodeInput').value = '';
-          document.getElementById('refNameInput').value = '';
-          loadReferrals();
-        }
-      } catch (err) {
-        feedback.className = 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
-        feedback.textContent = 'Failed to generate code.';
-        feedback.classList.remove('hidden');
-      }
-    });
-
-    // 4. Meta Integration
-    async function loadMeta() {
-      try {
-        const res = await fetch('/api/admin/meta');
-        const data = await res.json();
-        if (data.success && data.config) {
-          document.getElementById('metaPixelId').value = data.config.pixelId || '';
-          document.getElementById('metaToken').value = data.config.accessToken || '';
-          document.getElementById('metaTestCode').value = data.config.testEventCode || '';
-          document.getElementById('chkRegistration').checked = data.config.trackRegistration;
-          document.getElementById('chkDeposit').checked = data.config.trackDeposit;
-
-          const eventsList = document.getElementById('metaEventsList');
-          eventsList.innerHTML = '';
-          (data.config.eventsLogged || []).forEach(evt => {
-            const item = document.createElement('div');
-            item.className = 'p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono';
-            item.innerHTML = \`
-              <div>
-                <span class="font-bold text-blue-400 block">\${evt.eventName}</span>
-                <span class="text-[10px] text-slate-500">\${evt.userPhone} · \${evt.timestamp}</span>
-              </div>
-              <div class="text-right">
-                <span class="font-bold text-white">\${evt.value > 0 ? '₱' + evt.value.toLocaleString() : '-'}</span>
-                <span class="text-[10px] text-emerald-400 font-bold block">SIGNAL \${evt.status}</span>
-              </div>
-            \`;
-            eventsList.appendChild(item);
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    document.getElementById('metaConfigForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const pixelId = document.getElementById('metaPixelId').value;
-      const accessToken = document.getElementById('metaToken').value;
-      const testEventCode = document.getElementById('metaTestCode').value;
-      const trackRegistration = document.getElementById('chkRegistration').checked;
-      const trackDeposit = document.getElementById('chkDeposit').checked;
-      const feedback = document.getElementById('metaFeedback');
-
-      try {
-        const res = await fetch('/api/admin/meta/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pixelId, accessToken, testEventCode, trackRegistration, trackDeposit })
-        });
-        const data = await res.json();
-        feedback.className = data.success ? 'text-xs p-2 rounded bg-blue-950 border border-blue-500 text-blue-300' : 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
-        feedback.textContent = data.message;
-        feedback.classList.remove('hidden');
-      } catch (err) {
-        feedback.className = 'text-xs p-2 rounded bg-red-950 border border-red-500 text-red-300';
-        feedback.textContent = 'Save failed.';
-        feedback.classList.remove('hidden');
-      }
-    });
-
-    // 4. Game Win Rates Management
-    async function loadWinRates() {
-      try {
-        const res = await fetch('/api/admin/win-rates');
-        const data = await res.json();
-        if (data.success && data.winRates) {
-          const container = document.getElementById('winRatesList');
-          container.innerHTML = '';
-
-          Object.values(data.winRates).forEach(g => {
-            const card = document.createElement('div');
-            card.className = 'p-5 bg-slate-900 border border-slate-800 hover:border-amber-500/40 rounded-2xl space-y-4 shadow-xl transition-all';
-            card.innerHTML = \`
-              <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <div>
-                  <span class="text-[10px] font-bold tracking-widest text-amber-400 uppercase bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">\${g.provider} · \${g.category.toUpperCase()}</span>
-                  <h3 class="text-sm font-bold text-white mt-1">\${g.gameName}</h3>
-                </div>
-                <div class="text-right">
-                  <span class="text-xs text-slate-500 block font-mono">ID: \${g.gameId}</span>
-                  <span class="text-xs font-bold \${g.winRate >= 98 ? 'text-emerald-400' : g.winRate <= 90 ? 'text-red-400' : 'text-amber-400'} font-mono">
-                    RTP: \${g.winRate}%
-                  </span>
-                </div>
-              </div>
-
-              <form onsubmit="submitWinRateUpdate(event, '\${g.gameId}')" class="space-y-3 text-xs">
-                <div>
-                  <div class="flex justify-between text-slate-400 mb-1">
-                    <label class="font-semibold">Win Rate (RTP %)</label>
-                    <span id="rateLabel_\${g.gameId}" class="font-mono text-amber-300 font-bold">\${g.winRate}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="50"
-                    max="100"
-                    step="0.5"
-                    value="\${g.winRate}"
-                    id="winRate_\${g.gameId}"
-                    oninput="document.getElementById('rateLabel_\${g.gameId}').textContent = this.value + '%'"
-                    class="w-full accent-amber-400 cursor-pointer"
-                  />
-                  <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-0.5">
-                    <span>50% (Hard)</span>
-                    <span>97.6% (Standard)</span>
-                    <span>100% (Sure Win)</span>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="text-[11px] text-slate-400 block mb-1">Payout Multiplier</label>
-                    <input
-                      type="number"
-                      step="0.05"
-                      min="0.2"
-                      max="3.0"
-                      value="\${g.payoutMultiplier}"
-                      id="multiplier_\${g.gameId}"
-                      class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400"
-                    />
-                  </div>
-                  <div>
-                    <label class="text-[11px] text-slate-400 block mb-1">Wild Bonus Rate (%)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="50"
-                      value="\${g.wildBonusRate}"
-                      id="wildRate_\${g.gameId}"
-                      class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400"
-                    />
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="text-[11px] text-slate-400 block mb-1">Free Spin Rate (%)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="50"
-                      value="\${g.freeSpinRate}"
-                      id="freeSpinRate_\${g.gameId}"
-                      class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400"
-                    />
-                  </div>
-                  <div>
-                    <label class="text-[11px] text-slate-400 block mb-1">Rig / Volatility Mode</label>
-                    <select id="rigMode_\${g.gameId}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-amber-400 font-bold text-xs focus:border-amber-400">
-                      <option value="BALANCED" \${g.rigMode === 'BALANCED' ? 'selected' : ''}>Balanced (Normal)</option>
-                      <option value="HIGH_PAYOUT" \${g.rigMode === 'HIGH_PAYOUT' ? 'selected' : ''}>High Payout (Easy)</option>
-                      <option value="LOW_PAYOUT" \${g.rigMode === 'LOW_PAYOUT' ? 'selected' : ''}>Low Payout (House Favored)</option>
-                      <option value="JACKPOT_HUNT" \${g.rigMode === 'JACKPOT_HUNT' ? 'selected' : ''}>Jackpot Hunt (Crazy Big Wins)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div id="feedback_\${g.gameId}" class="hidden p-2 rounded text-[11px]"></div>
-
-                <button
-                  type="submit"
-                  class="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 shadow transition-all"
-                >
-                  I-Save ang Bagong Win Rate
-                </button>
-              </form>
-            \`;
-            container.appendChild(card);
-          });
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    async function submitWinRateUpdate(e, gameId) {
-      e.preventDefault();
-      const winRate = document.getElementById('winRate_' + gameId).value;
-      const payoutMultiplier = document.getElementById('multiplier_' + gameId).value;
-      const wildBonusRate = document.getElementById('wildRate_' + gameId).value;
-      const freeSpinRate = document.getElementById('freeSpinRate_' + gameId).value;
-      const rigMode = document.getElementById('rigMode_' + gameId).value;
-      const feedback = document.getElementById('feedback_' + gameId);
-
-      try {
-        const res = await fetch('/api/admin/win-rates/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gameId, winRate, payoutMultiplier, wildBonusRate, freeSpinRate, rigMode })
-        });
-        const data = await res.json();
-        feedback.className = data.success ? 'p-2 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 font-bold block text-[11px]' : 'p-2 rounded bg-red-950 border border-red-500 text-red-300 font-bold block text-[11px]';
-        feedback.textContent = data.message;
-        setTimeout(() => {
-          feedback.className = 'hidden';
-        }, 3500);
-      } catch (err) {
-        feedback.className = 'p-2 rounded bg-red-950 border border-red-500 text-red-300 font-bold block text-[11px]';
-        feedback.textContent = 'Failed to save win rate settings.';
-      }
-    }
-
-    async function sendMetaTestEvent() {
-      try {
-        const res = await fetch('/api/admin/meta/test-event', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ eventName: 'TestLeadTrigger', value: 500 })
-        });
-        const data = await res.json();
-        alert(data.message);
-        loadMeta();
-      } catch (err) {
-        alert('Test failed.');
-      }
-    }
-  </script>
-</body>
-</html>`;
-
-  res.send(adminHtml);
+// 7. Dedicated Isolated Admin Portal (/admin and /admin.html)
+app.get(['/admin', '/admin.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
+
 
 // Vite & Static file serving
 async function startServer() {

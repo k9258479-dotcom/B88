@@ -50,18 +50,10 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [promosOpen, setPromosOpen] = useState(false);
   const [vipOpen, setVipOpen] = useState(false);
+  const [authNotice, setAuthNotice] = useState<string | undefined>(undefined);
 
   // Active Interactive Game
-  const [activeGame, setActiveGame] = useState<GameItem | null>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const gameParam = params.get('game');
-      if (gameParam === 'super_ace' || gameParam === 'superace' || gameParam === 'super-ace') {
-        return GAMES_CATALOG[0];
-      }
-    }
-    return null;
-  });
+  const [activeGame, setActiveGame] = useState<GameItem | null>(null);
 
   // Listen to browser back/forward buttons
   useEffect(() => {
@@ -69,21 +61,25 @@ export default function App() {
       const params = new URLSearchParams(window.location.search);
       const gameParam = params.get('game');
       if (gameParam === 'super_ace' || gameParam === 'superace' || gameParam === 'super-ace') {
-        setActiveGame(GAMES_CATALOG[0]);
+        if (user.isLoggedIn) {
+          setActiveGame(GAMES_CATALOG[0]);
+        }
       } else {
         setActiveGame(null);
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [user.isLoggedIn]);
 
   // Initial Data Fetching from fullstack Express backend
   useEffect(() => {
     async function loadInitialData() {
       const userRes = await api.getCurrentUser();
+      let isAuthed = false;
       if (userRes.success && userRes.user) {
         setUser(userRes.user);
+        isAuthed = userRes.user.isLoggedIn;
       }
 
       const walletRes = await api.getWallet();
@@ -100,10 +96,32 @@ export default function App() {
       if (vipRes.success && vipRes.levels) {
         setVipTiers(vipRes.levels);
       }
+
+      // Check URL query: ?game=super_ace
+      const params = new URLSearchParams(window.location.search);
+      const gameParam = params.get('game');
+      if (gameParam === 'super_ace' || gameParam === 'superace' || gameParam === 'super-ace') {
+        if (isAuthed) {
+          setActiveGame(GAMES_CATALOG[0]);
+        } else {
+          setAuthMode('register');
+          setAuthNotice('Kailangan mong mag-register o mag-login muna bago makapaglaro ng Super Ace Slot!');
+          setAuthOpen(true);
+        }
+      }
     }
 
     loadInitialData();
   }, []);
+
+  // Periodic wallet refresh to sync approved deposits automatically
+  useEffect(() => {
+    if (!user.isLoggedIn) return;
+    const interval = setInterval(() => {
+      handleRefreshWallet();
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [user.isLoggedIn]);
 
   const handleRefreshWallet = async () => {
     const walletRes = await api.getWallet();
@@ -126,9 +144,10 @@ export default function App() {
     setCashierOpen(true);
   };
 
-  const handleOpenAuth = (mode: 'login' | 'register' = 'login') => {
+  const handleOpenAuth = (mode: 'login' | 'register' = 'login', notice?: string) => {
     sounds.playClick();
     setAuthMode(mode);
+    setAuthNotice(notice);
     setAuthOpen(true);
   };
 
@@ -136,15 +155,26 @@ export default function App() {
     sounds.playClick();
     await api.logout();
     setUser(prev => ({ ...prev, isLoggedIn: false }));
+    setActiveGame(null);
   };
 
   const handleLoginSuccess = (loggedInUser: UserProfile) => {
     setUser(loggedInUser);
     handleRefreshWallet();
+    // If user was trying to play game, launch it now!
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('game')) {
+      setActiveGame(GAMES_CATALOG[0]);
+    }
   };
 
   const handleLaunchGame = (game: GameItem) => {
     sounds.playClick();
+    // Requirement 3: Must register / log in first before playing
+    if (!user.isLoggedIn) {
+      handleOpenAuth('register', 'Kailangan mong mag-register o mag-login muna bago makapaglaro ng Super Ace Slot!');
+      return;
+    }
     setActiveGame(game);
     // Push clean game URL: ?game=super_ace
     const url = new URL(window.location.href);
@@ -212,39 +242,42 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* When Game is Active: Direct Full Game Page Experience */}
+      {/* When Game is Active: Direct Full Screen Game Experience */}
       {activeGame ? (
-        <div className="flex-1 w-full bg-black flex flex-col items-center justify-start py-2 sm:py-6 px-1 sm:px-4 animate-fadeIn">
-          {/* Top Game Navigation Breadcrumb Bar */}
-          <div className="w-full max-w-[440px] flex items-center justify-between px-3 py-2 bg-slate-900/90 rounded-2xl border border-amber-500/20 mb-3 shadow-lg">
+        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center overflow-hidden w-screen h-screen select-none animate-fadeIn">
+          {/* Top Floating Controls Bar */}
+          <header className="absolute top-2 left-2 right-2 sm:top-3 sm:left-4 sm:right-4 z-50 flex items-center justify-between pointer-events-none">
             <button
               onClick={handleCloseGame}
-              className="flex items-center gap-1.5 text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800"
+              className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-800 text-amber-400 hover:text-amber-300 border border-amber-500/40 text-xs font-bold shadow-2xl backdrop-blur-md transition-all active:scale-95"
             >
               <span>←</span>
               <span>Bumalik sa Lobby</span>
             </button>
-            <div className="text-right flex items-center gap-2">
-              <span className="text-[11px] text-slate-400">Balanse:</span>
-              <span className="text-xs font-bold text-emerald-400 font-mono">
+
+            <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-amber-500/40 shadow-2xl">
+              <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Balanse:</span>
+              <span className="text-xs font-mono font-bold text-emerald-400">
                 ₱{user.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
               <button
                 onClick={() => handleOpenCashier('deposit')}
-                className="px-2 py-1 bg-amber-500 text-slate-950 font-black rounded-lg text-[10px] uppercase hover:brightness-110"
+                className="px-2.5 py-1 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black rounded-full text-[10px] uppercase hover:brightness-110 active:scale-95 shadow-md shadow-amber-500/20"
               >
                 + Cash In
               </button>
             </div>
-          </div>
+          </header>
 
-          {/* Super Ace Interactive Game View */}
-          <SuperAceGame
-            userBalance={user.balance}
-            onBalanceUpdate={handleBalanceUpdate}
-            onClose={handleCloseGame}
-            onOpenCashier={() => handleOpenCashier('deposit')}
-          />
+          {/* Super Ace Interactive Full Screen Game */}
+          <div className="w-full h-full flex items-center justify-center">
+            <SuperAceGame
+              userBalance={user.balance}
+              onBalanceUpdate={handleBalanceUpdate}
+              onClose={handleCloseGame}
+              onOpenCashier={() => handleOpenCashier('deposit')}
+            />
+          </div>
         </div>
       ) : (
         /* When No Game Active: Main Lobby View */
@@ -385,6 +418,7 @@ export default function App() {
         onClose={() => setAuthOpen(false)}
         onLoginSuccess={handleLoginSuccess}
         initialMode={authMode}
+        noticeMessage={authNotice}
       />
 
       <PromotionsModal

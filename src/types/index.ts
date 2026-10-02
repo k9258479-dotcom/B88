@@ -10,6 +10,10 @@ export interface UserProfile {
   avatar: string;
   totalDeposited: number;
   totalWithdrawn: number;
+  turnover?: number;
+  totalWon?: number;
+  totalLost?: number;
+  totalSpins?: number;
 }
 
 export interface Transaction {

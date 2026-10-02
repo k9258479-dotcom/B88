@@ -9,7 +9,7 @@
   <!-- Firebase SDK from CDN for direct admin manipulation -->
   <script type="module">
     import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
       projectId: "vernal-maker-gf6jr",
@@ -30,6 +30,7 @@
       getDoc,
       setDoc,
       updateDoc,
+      deleteDoc,
       collection,
       getDocs,
       addDoc
@@ -41,6 +42,9 @@
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen">
+  <!-- Notification Toast Container -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
   <!-- Auth Screen -->
   <div id="loginSection" class="min-h-screen flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-amber-500/40 rounded-2xl p-8 max-w-md w-full shadow-2xl">
@@ -56,85 +60,119 @@
 
       <form id="adminLoginForm" class="space-y-4">
         <div>
-          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin Mobile / ID</label>
+          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin / Staff Username o Mobile</label>
           <input type="text" id="adminPhone" value="09060489645" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
         </div>
         <div>
-          <label class="text-xs text-slate-400 font-semibold block mb-1">Admin Security Password</label>
+          <label class="text-xs text-slate-400 font-semibold block mb-1">Password</label>
           <input type="password" id="adminPass" value="Dan051391" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
         </div>
-        <div id="loginError" class="hidden text-xs text-red-400 bg-red-950/50 p-2.5 rounded-lg border border-red-500/30"></div>
-        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 shadow-lg shadow-amber-500/20">
-          Enter Management Console
+
+        <div id="loginError" class="hidden p-3 rounded-xl bg-red-950/80 border border-red-500 text-red-300 text-xs"></div>
+
+        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-amber-500/20">
+          Mag-login sa Dashboard
         </button>
       </form>
     </div>
   </div>
 
-  <!-- Dashboard Screen -->
+  <!-- Dashboard Section -->
   <div id="dashboardSection" class="hidden min-h-screen flex flex-col">
-    <!-- Top Nav -->
-    <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md">
+    <!-- Header -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <span class="text-2xl">🛡️</span>
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-xl font-bold">
+          🛡️
+        </div>
         <div>
-          <h1 class="text-sm font-bold text-amber-400">BET88 OPERATING BACKEND</h1>
-          <span class="text-[10px] text-emerald-400 font-mono">Status: Connected to Cloud Firestore · Project: vernal-maker-gf6jr</span>
+          <h1 class="text-sm font-bold text-amber-400 tracking-wider">BET88 PLATFORM MANAGEMENT</h1>
+          <p class="text-[11px] text-slate-400">Operations, Cashier Approvals & Staff Controller</p>
         </div>
       </div>
-      <div class="flex items-center gap-3">
-        <a href="/" target="_blank" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl transition-colors font-medium">
-          Buksan ang Casino Platform ↗
-        </a>
-        <button id="adminLogoutBtn" class="px-3.5 py-1.5 bg-red-950/70 border border-red-500/40 text-red-300 hover:bg-red-900 text-xs rounded-xl font-bold">
+
+      <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+        <div id="userBadge" class="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-xs text-amber-300 font-semibold flex items-center gap-1.5">
+          <span>👤</span>
+          <span id="adminDisplayName">Master Admin (Super Admin)</span>
+        </div>
+        <button id="adminLogoutBtn" class="px-3 py-1.5 bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 rounded-lg text-xs font-bold transition-colors">
           Logout
         </button>
       </div>
     </header>
 
     <!-- Sub Navigation Tabs -->
-    <div class="bg-slate-950 border-b border-slate-800 px-6 flex gap-2 overflow-x-auto text-xs font-bold uppercase tracking-wider">
+    <div id="navigationTabs" class="bg-slate-950 border-b border-slate-800 px-6 flex gap-2 overflow-x-auto text-xs font-bold uppercase tracking-wider">
       <button onclick="switchTab('tabCashier')" id="btnTabCashier" class="py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5">
-        Deposit & Withdrawal Approvals
+        💰 Cashier Approvals
       </button>
       <button onclick="switchTab('tabUsers')" id="btnTabUsers" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
-        Registered Players (Manual Deposit / Credit)
+        👥 Players & Turnovers
+      </button>
+      <button onclick="switchTab('tabStaff')" id="btnTabStaff" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
+        🛡️ Staff & Roles
       </button>
       <button onclick="switchTab('tabReferrals')" id="btnTabReferrals" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
-        Referral Links & Affiliates
+        🔗 Referral Links
       </button>
       <button onclick="switchTab('tabWinRates')" id="btnTabWinRates" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5">
         <span>🎮</span>
-        <span>Game Win Rates (RTP & Volatility)</span>
+        <span>Win Rates (RTP)</span>
+      </button>
+      <button onclick="switchTab('tabSecurity')" id="btnTabSecurity" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
+        🔐 Admin Login Settings
       </button>
       <button onclick="switchTab('tabMeta')" id="btnTabMeta" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
-        Meta (FB Pixel) Integration
+        📊 Meta (FB Pixel)
       </button>
     </div>
 
     <!-- Main Content Area -->
-    <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
 
-      <!-- TAB 1: CASHIER APPROVALS -->
+      <!-- TAB 1: CASHIER APPROVALS WITH ADVANCED FILTERS & TOTALS -->
       <section id="tabCashier" class="space-y-6">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-bold text-white">Cashier Approvals Queue</h2>
-            <p class="text-xs text-slate-400">I-verify, aprubahan, o i-reject ang mga pumapasok na GCash/Maya deposits at cashouts.</p>
+        <!-- Cashflow Stat Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="p-4 bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-lg">
+            <span class="text-[11px] text-slate-400 block font-semibold">Total Approved Deposits</span>
+            <span id="statApprovedDeposits" class="text-xl font-bold font-mono text-emerald-400 mt-1 block">₱0.00</span>
+            <span id="statApprovedDepositsCount" class="text-[10px] text-slate-500 block mt-1">0 transactions</span>
           </div>
-          <button onclick="loadTransactions()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
-            I-refresh ang Queue
-          </button>
+
+          <div class="p-4 bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-lg">
+            <span class="text-[11px] text-slate-400 block font-semibold">Total Approved Withdrawals</span>
+            <span id="statApprovedWithdrawals" class="text-xl font-bold font-mono text-cyan-400 mt-1 block">₱0.00</span>
+            <span id="statApprovedWithdrawalsCount" class="text-[10px] text-slate-500 block mt-1">0 transactions</span>
+          </div>
+
+          <div class="p-4 bg-slate-900 border border-amber-500/40 rounded-2xl shadow-lg">
+            <span class="text-[11px] text-slate-400 block font-semibold">Nakabinbin (Pending Queue)</span>
+            <span id="statPendingTotal" class="text-xl font-bold font-mono text-amber-400 mt-1 block">₱0.00</span>
+            <span id="statPendingCount" class="text-[10px] text-amber-500/90 block mt-1">0 pending requests</span>
+          </div>
+
+          <div class="p-4 bg-slate-900 border border-purple-500/30 rounded-2xl shadow-lg">
+            <span class="text-[11px] text-slate-400 block font-semibold">Net Platform Cashflow (Profit)</span>
+            <span id="statNetCashflow" class="text-xl font-bold font-mono text-purple-400 mt-1 block">₱0.00</span>
+            <span class="text-[10px] text-slate-500 block mt-1">Deposits minus Withdrawals</span>
+          </div>
         </div>
 
-        <!-- Pending Table -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
-              <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-              Pending Requests Queue (<span id="pendingCount">0</span>)
-            </span>
-            <span class="text-xs text-slate-500">Fast action: Click Aprubahan to credit player instantly</span>
+        <!-- Pending Approval Queue -->
+        <div class="bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+          <div class="p-4 border-b border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                Kasalukuyang Nakabinbing mga Kahilingan (Pending Queue)
+              </span>
+              <p class="text-[11px] text-slate-400">Pindutin ang Aprubahan upang agad pumasok ang balanse sa account ng manlalaro.</p>
+            </div>
+            <button onclick="loadTransactions()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+              🔄 I-refresh ang Queue
+            </button>
           </div>
 
           <div class="overflow-x-auto">
@@ -147,32 +185,81 @@
                   <th class="p-3">Halaga (PHP)</th>
                   <th class="p-3">Reference / Account</th>
                   <th class="p-3">Oras</th>
-                  <th class="p-3 text-right">Aksyon</th>
+                  <th class="p-3 text-right">Aksyon (Fast Click)</th>
                 </tr>
               </thead>
               <tbody id="pendingTbody" class="divide-y divide-slate-800/80 font-mono">
-                <tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending transactions sa kasalukuyan.</td></tr>
+                <!-- Injected via JS -->
               </tbody>
             </table>
           </div>
         </div>
 
-        <!-- All Transactions Ledger -->
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-          <div class="p-4 border-b border-slate-800">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">Buong Transaction History</h3>
+        <!-- All Transactions Ledger with Filter & Sorting Controls -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-4 p-4">
+          <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <h3 class="text-sm font-bold uppercase tracking-wider text-slate-200">Buong Talaan ng Transaksyon (Ledger)</h3>
+              <p class="text-[11px] text-slate-400">Gamitin ang filter at sorting upang makita ang kabuuang halaga ng mga napiling transaksyon.</p>
+            </div>
+
+            <!-- Filtered Total Pill -->
+            <div class="px-3.5 py-1.5 bg-slate-950 border border-slate-700 rounded-xl font-mono text-xs">
+              <span class="text-slate-400">Kabuuang Halaga ng Filtered: </span>
+              <span id="filteredTotalSum" class="font-bold text-amber-400">₱0.00</span>
+              <span id="filteredCount" class="text-slate-500 text-[11px] ml-1">(0 transaksyon)</span>
+            </div>
           </div>
-          <div class="overflow-x-auto max-h-72 overflow-y-auto">
+
+          <!-- Controls Bar -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Uri (Transaction Type)</label>
+              <select id="filterType" onchange="renderFilteredTransactions()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-semibold">
+                <option value="ALL">Lahat ng Uri (Deposits & Withdrawals)</option>
+                <option value="DEPOSIT">Deposits Lamang</option>
+                <option value="WITHDRAWAL">Withdrawals Lamang</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Katayuan (Status)</label>
+              <select id="filterStatus" onchange="renderFilteredTransactions()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-semibold">
+                <option value="ALL">Lahat ng Katayuan</option>
+                <option value="APPROVED">Approved Lamang</option>
+                <option value="PENDING">Pending Lamang</option>
+                <option value="REJECTED">Rejected Lamang</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Pagsunud-sunod (Sort By)</label>
+              <select id="filterSort" onchange="renderFilteredTransactions()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-semibold">
+                <option value="NEWEST">Pinakabago (Newest First)</option>
+                <option value="OLDEST">Pinakaluma (Oldest First)</option>
+                <option value="AMOUNT_DESC">Pinakamalaking Halaga (Highest Amount)</option>
+                <option value="AMOUNT_ASC">Pinakamaliit na Halaga (Lowest Amount)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Maghanap (Search Phone / Ref)</label>
+              <input type="text" id="filterSearch" oninput="renderFilteredTransactions()" placeholder="e.g. 0906... o GC-..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono" />
+            </div>
+          </div>
+
+          <div class="overflow-x-auto max-h-96 overflow-y-auto">
             <table class="w-full text-left text-xs">
-              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
+              <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800 sticky top-0">
                 <tr>
-                  <th class="p-3">Status</th>
+                  <th class="p-3">Katayuan</th>
                   <th class="p-3">Type</th>
-                  <th class="p-3">Player</th>
+                  <th class="p-3">Player Mobile</th>
                   <th class="p-3">Method</th>
-                  <th class="p-3">Amount</th>
-                  <th class="p-3">Ref No</th>
-                  <th class="p-3">Auditor</th>
+                  <th class="p-3">Halaga (PHP)</th>
+                  <th class="p-3">Ref No / Account</th>
+                  <th class="p-3">Oras</th>
+                  <th class="p-3">Approver / Staff</th>
                 </tr>
               </thead>
               <tbody id="allTbody" class="divide-y divide-slate-800/80 font-mono">
@@ -183,27 +270,49 @@
         </div>
       </section>
 
-      <!-- TAB 2: REGISTERED USERS & MANUAL DEPOSIT CREDIT -->
+      <!-- TAB 2: REGISTERED USERS, TURNOVER, WIN/LOSS & MANUAL DEPOSIT -->
       <section id="tabUsers" class="hidden space-y-6">
+        <!-- Player Overview Stats -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-lg">
+            <span class="text-[11px] text-slate-400 block font-semibold">Bilang ng Manlalaro</span>
+            <span id="statTotalUsers" class="text-xl font-bold font-mono text-white mt-1 block">0</span>
+            <span class="text-[10px] text-slate-500 block mt-1">Mga rehistradong account</span>
+          </div>
+
+          <div class="p-4 bg-slate-900 border border-amber-500/30 rounded-2xl shadow-lg">
+            <span class="text-[11px] text-slate-400 block font-semibold">Kabuuang Turnover (Bets Wagered)</span>
+            <span id="statTotalTurnover" class="text-xl font-bold font-mono text-amber-400 mt-1 block">₱0.00</span>
+            <span class="text-[10px] text-slate-500 block mt-1">Lahat ng taya sa laro</span>
+          </div>
+
+          <div class="p-4 bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-lg">
+            <span class="text-[11px] text-slate-400 block font-semibold">Kabuuang Panalo ng Player (Payouts)</span>
+            <span id="statTotalPlayerWon" class="text-xl font-bold font-mono text-cyan-400 mt-1 block">₱0.00</span>
+            <span class="text-[10px] text-slate-500 block mt-1">Naipanalong credits ng players</span>
+          </div>
+
+          <div class="p-4 bg-slate-900 border border-emerald-500/30 rounded-2xl shadow-lg">
+            <span class="text-[11px] text-slate-400 block font-semibold">House Net Win (Gross Gaming Revenue)</span>
+            <span id="statHouseGGR" class="text-xl font-bold font-mono text-emerald-400 mt-1 block">₱0.00</span>
+            <span class="text-[10px] text-slate-500 block mt-1">Turnover minus Total Won</span>
+          </div>
+        </div>
+
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 class="text-lg font-bold text-white">Mga Rehistradong Manlalaro</h2>
-            <p class="text-xs text-slate-400">Talaan ng mga players sa Firestore. Pwede kang direktang mag-deposit/mag-credit ng pondo sa kanilang profile.</p>
+            <h2 class="text-lg font-bold text-white">Mga Rehistradong Manlalaro at Player Analytics</h2>
+            <p class="text-xs text-slate-400">Detalyadong talaan ng Turnover, Total Win, Total Loss, at Balanse ng bawat player.</p>
           </div>
-          <div class="flex gap-2">
-            <button onclick="openManualDepositModal()" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-500 to-emerald-400 text-slate-950 hover:brightness-110 text-xs font-black rounded-lg shadow-lg shadow-emerald-500/20 flex items-center gap-1.5">
-              <span>➕</span> Mag-Deposit ng Halaga sa Player
-            </button>
-            <button onclick="loadUsers()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
-              I-refresh
-            </button>
-          </div>
+          <button onclick="loadUsers()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            🔄 I-refresh ang Talaan
+          </button>
         </div>
 
         <!-- Quick Manual Deposit Bar -->
         <div class="bg-slate-900 border border-emerald-500/30 rounded-2xl p-4 shadow-xl">
           <div class="flex items-center gap-2 mb-2">
-            <span class="text-emerald-400 text-sm font-bold">⚡ Mabilisang Pag-load / Pag-credit ng Pera (Manual Deposit):</span>
+            <span class="text-emerald-400 text-sm font-bold">⚡ Mabilisang Pag-credit / Manual Deposit:</span>
           </div>
           <form id="quickDepositForm" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
@@ -213,7 +322,7 @@
               <input type="number" id="quickAmount" placeholder="Halaga (PHP, e.g. 500)" min="1" step="1" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-emerald-400" required />
             </div>
             <div>
-              <input type="text" id="quickNote" placeholder="Remarks (e.g. GCash Cash-in / Direct VIP Load)" value="Admin Direct Load" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-400" />
+              <input type="text" id="quickNote" placeholder="Remarks" value="Admin Manual Credit" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-400" />
             </div>
             <button type="submit" class="py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-emerald-500/20">
               I-credit sa Profile Agad
@@ -222,7 +331,12 @@
           <div id="quickDepositFeedback" class="hidden mt-2 text-xs p-2 rounded"></div>
         </div>
 
+        <!-- Users Table with Turnover, Win, Loss -->
         <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+          <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+            <input type="text" id="searchPlayerInput" oninput="filterPlayersTable()" placeholder="Maghanap ng player gamit ang mobile number o username..." class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white w-72 font-mono" />
+            <span class="text-xs text-slate-400 font-mono" id="playerCountLabel">0 manlalaro</span>
+          </div>
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs">
               <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
@@ -230,11 +344,13 @@
                   <th class="p-3">Mobile Number</th>
                   <th class="p-3">Username</th>
                   <th class="p-3">Kasalukuyang Balanse</th>
+                  <th class="p-3 text-amber-400">Turnover (Taya)</th>
+                  <th class="p-3 text-cyan-400">Total Win</th>
+                  <th class="p-3 text-red-400">Total Loss</th>
+                  <th class="p-3 text-emerald-400">House Net P/L</th>
                   <th class="p-3">Total Deposited</th>
                   <th class="p-3">VIP</th>
-                  <th class="p-3">Referral Code</th>
-                  <th class="p-3">Petsa ng Rehistro</th>
-                  <th class="p-3 text-right">Aksyon (Lagyan ng Deposit)</th>
+                  <th class="p-3 text-right">Aksyon</th>
                 </tr>
               </thead>
               <tbody id="usersTbody" class="divide-y divide-slate-800/80 font-mono">
@@ -245,13 +361,105 @@
         </div>
       </section>
 
-      <!-- TAB 3: REFERRAL LINKS CREATOR -->
+      <!-- TAB 3: STAFF SUB-ACCOUNTS & ROLE ACCESS CONTROLLER -->
+      <section id="tabStaff" class="hidden space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>🛡️</span>
+              <span>Staff Accounts & Partial Access Control</span>
+            </h2>
+            <p class="text-xs text-slate-400">
+              Gumawa ng sub-accounts para sa iyong staff (Cashier, Marketing, Support) na may takdang mga tabs at pahintulot lamang.
+            </p>
+          </div>
+          <button onclick="loadStaffAccounts()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            🔄 I-refresh ang Staff List
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <!-- Create Staff Form -->
+          <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+            <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider">Gumawa ng Bagong Staff Account</h3>
+            <p class="text-xs text-slate-400">Italaga ang tungkulin at mga tabs na maaari lamang nilang buksan sa dashboard.</p>
+
+            <form id="createStaffForm" class="space-y-3">
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Pangalan ng Staff</label>
+                <input type="text" id="staffNameInput" placeholder="e.g. Maria - Cashier Shift A" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white text-xs focus:border-amber-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Username o Mobile para sa Login</label>
+                <input type="text" id="staffUserInput" placeholder="e.g. cashier_maria" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono text-xs focus:border-amber-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Staff Password</label>
+                <input type="password" id="staffPassInput" placeholder="Min. 6 characters" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono text-xs focus:border-amber-400" required />
+              </div>
+              <div>
+                <label class="text-xs text-slate-400 block mb-1">Tungkulin at Access Role</label>
+                <select id="staffRoleInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-amber-400 font-bold text-xs focus:border-amber-400">
+                  <option value="FINANCE_CASHIER">💳 Finance / Cashier (Approvals Queue Lamang)</option>
+                  <option value="MARKETING_AFFILIATE">📢 Marketing / Affiliate (Referrals & Pixel Lamang)</option>
+                  <option value="GAME_OPERATIONS">🎮 Game Operations (Player Turnover & RTP Lamang)</option>
+                  <option value="SUPER_ADMIN">👑 Full Administrator (Lahat ng Tabs)</option>
+                </select>
+              </div>
+
+              <div id="staffFeedback" class="hidden text-xs p-2 rounded"></div>
+
+              <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-md shadow-amber-500/20">
+                I-save ang Staff Account
+              </button>
+            </form>
+          </div>
+
+          <!-- Staff Table -->
+          <div class="lg:col-span-2 p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Mga Aktibong Staff Sub-Accounts</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
+                  <tr>
+                    <th class="p-3">Staff Name</th>
+                    <th class="p-3">Login Username</th>
+                    <th class="p-3">Role / Permissions</th>
+                    <th class="p-3">Status</th>
+                    <th class="p-3 text-right">Aksyon</th>
+                  </tr>
+                </thead>
+                <tbody id="staffTbody" class="divide-y divide-slate-800/80 font-mono">
+                  <!-- Injected via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: REFERRAL LINKS CREATOR & MULTI-DEVICE CLOUD SYNC -->
       <section id="tabReferrals" class="hidden space-y-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>🔗</span>
+              <span>Referral Links & Affiliate Partners</span>
+            </h2>
+            <p class="text-xs text-slate-400">
+              Direktang naka-save sa Firestore Cloud Database upang lumabas sa anumang browser, tablet, o desktop na magbubukas ng backend.
+            </p>
+          </div>
+          <button onclick="loadReferrals()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            🔄 I-refresh ang Referral Links
+          </button>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <!-- Create Form -->
           <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
             <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider">Gumawa ng Bagong Referral Code</h3>
-            <p class="text-xs text-slate-400">Gumawa ng natatanging link para sa mga streamers, ahente, o promosyon.</p>
+            <p class="text-xs text-slate-400">I-save sa database para magamit agad sa live platform.</p>
 
             <form id="createRefForm" class="space-y-3">
               <div>
@@ -259,7 +467,7 @@
                 <input type="text" id="refCodeInput" placeholder="e.g. VIP88MANILA" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono uppercase text-xs focus:outline-none focus:border-amber-400" required />
               </div>
               <div>
-                <label class="text-xs text-slate-400 block mb-1">Pangalan ng Ahente o Creator</label>
+                <label class="text-xs text-slate-400 block mb-1">Pangalan ng Ahente o Partner</label>
                 <input type="text" id="refNameInput" placeholder="e.g. John Streamer PH" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white text-xs focus:outline-none focus:border-amber-400" required />
               </div>
               <div>
@@ -267,30 +475,25 @@
                 <input type="number" step="0.1" id="refRateInput" value="1.5" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
               </div>
               <div id="refFeedback" class="hidden text-xs p-2 rounded"></div>
-              <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase rounded-xl transition-all">
-                I-generate ang Referral Link
+              <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase rounded-xl transition-all shadow-md shadow-amber-500/20">
+                I-save sa Database ang Referral Link
               </button>
             </form>
           </div>
 
           <!-- Existing Referral Codes Table -->
           <div class="lg:col-span-2 p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
-            <div class="flex items-center justify-between">
-              <h3 class="text-sm font-bold text-white uppercase tracking-wider">Aktibong Referral Codes & Affiliate Links</h3>
-              <button onclick="loadReferrals()" class="px-2.5 py-1 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded">
-                Refresh
-              </button>
-            </div>
-
+            <h3 class="text-sm font-bold text-white uppercase tracking-wider">Aktibong Referral Codes (Naka-sync sa Lahat ng Desktop)</h3>
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs">
-                <thead class="text-slate-400 font-mono border-b border-slate-800">
+                <thead class="bg-slate-950 text-slate-400 font-mono border-b border-slate-800">
                   <tr>
-                    <th class="pb-2">Code</th>
-                    <th class="pb-2">Creator</th>
-                    <th class="pb-2">Signups</th>
-                    <th class="pb-2">Commission</th>
-                    <th class="pb-2">Shareable Link</th>
+                    <th class="p-3">Code</th>
+                    <th class="p-3">Creator / Partner</th>
+                    <th class="p-3">Signups</th>
+                    <th class="p-3">Commission</th>
+                    <th class="p-3">Live Shareable Link</th>
+                    <th class="p-3 text-right">Aksyon</th>
                   </tr>
                 </thead>
                 <tbody id="referralsTbody" class="divide-y divide-slate-800/80 font-mono">
@@ -302,20 +505,20 @@
         </div>
       </section>
 
-      <!-- TAB 4: GAME WIN RATES & RTP CONTROLLER -->
+      <!-- TAB 5: GAME WIN RATES & RTP CONTROLLER -->
       <section id="tabWinRates" class="hidden space-y-6">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h2 class="text-lg font-bold text-white flex items-center gap-2">
               <span>🎮</span>
-              <span>Game Win Rates & RTP (Return to Player) Control Center</span>
+              <span>Super Ace Game Win Rates & Volatility Controller</span>
             </h2>
             <p class="text-xs text-slate-400">
-              I-set at kontrolin ang win rate percentage (RTP), payout multiplier, wild bonus rate, at volatility para sa bawat laro.
+              I-set at kontrolin ang win rate percentage (RTP), payout multiplier, wild bonus rate, at volatility para sa laro.
             </p>
           </div>
-          <button onclick="loadWinRates()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
-            I-refresh ang Rates
+          <button onclick="loadWinRates()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg">
+            🔄 I-refresh ang Rates
           </button>
         </div>
 
@@ -324,41 +527,81 @@
         </div>
       </section>
 
-      <!-- TAB 4: META INTEGRATION -->
+      <!-- TAB 6: SECURITY & ADMIN LOGIN SETTINGS -->
+      <section id="tabSecurity" class="hidden space-y-6">
+        <div class="max-w-xl p-6 bg-slate-900 border border-amber-500/30 rounded-2xl shadow-xl space-y-4">
+          <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
+            <span class="text-2xl">🔐</span>
+            <div>
+              <h2 class="text-base font-bold text-amber-400">Palitan ang Admin Login Credentials</h2>
+              <p class="text-xs text-slate-400">Baguhin ang iyong Master Admin mobile number o username at password.</p>
+            </div>
+          </div>
+
+          <form id="adminSecurityForm" class="space-y-4">
+            <div>
+              <label class="text-xs text-slate-400 font-semibold block mb-1">Bagong Admin Mobile / Username</label>
+              <input type="text" id="newAdminPhone" value="09060489645" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-amber-400" required />
+            </div>
+
+            <div>
+              <label class="text-xs text-slate-400 font-semibold block mb-1">Kasalukuyang Password (Verification)</label>
+              <input type="password" id="currentAdminPass" placeholder="Ilagay ang dating password" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-amber-400" required />
+            </div>
+
+            <div>
+              <label class="text-xs text-slate-400 font-semibold block mb-1">Bagong Password</label>
+              <input type="password" id="newAdminPass" placeholder="Min. 6 characters" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-amber-400" required />
+            </div>
+
+            <div>
+              <label class="text-xs text-slate-400 font-semibold block mb-1">Ulitin ang Bagong Password (Confirm)</label>
+              <input type="password" id="confirmAdminPass" placeholder="Ulitin ang bagong password" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-amber-400" required />
+            </div>
+
+            <div id="securityFeedback" class="hidden text-xs p-3 rounded-xl"></div>
+
+            <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-amber-500/20">
+              I-save ang Bagong Admin Credentials
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- TAB 7: META CONVERSIONS API -->
       <section id="tabMeta" class="hidden space-y-6">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <!-- Meta Pixel Settings -->
           <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4">
             <div class="flex items-center gap-2">
               <span class="text-xl">📊</span>
               <div>
                 <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider">Meta Conversions API & Pixel Setup</h3>
-                <p class="text-xs text-slate-400">I-connect ang Facebook Ads Pixel para sa auto-tracking ng Registration at Deposit events.</p>
+                <p class="text-xs text-slate-400">Auto-tracking ng Registration at Deposit events sa Facebook Ads Manager.</p>
               </div>
             </div>
 
             <form id="metaConfigForm" class="space-y-3">
               <div>
                 <label class="text-xs text-slate-400 block mb-1">Meta Pixel ID (Dataset ID)</label>
-                <input type="text" id="metaPixelId" value="984120485918231" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" required />
+                <input type="text" id="metaPixelId" value="984120485918231" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:border-blue-400" required />
               </div>
               <div>
                 <label class="text-xs text-slate-400 block mb-1">Conversions API Access Token (Graph API)</label>
-                <input type="password" id="metaToken" value="EAAGNO4...fb_conversions_api_key_valid" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" required />
+                <input type="password" id="metaToken" value="EAAGNO4...fb_conversions_api_key_valid" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:border-blue-400" required />
               </div>
               <div>
                 <label class="text-xs text-slate-400 block mb-1">Test Event Code (Facebook Events Manager)</label>
-                <input type="text" id="metaTestCode" value="TEST98421" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:outline-none focus:border-blue-400" />
+                <input type="text" id="metaTestCode" value="TEST98421" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 font-mono text-xs text-white focus:border-blue-400" />
               </div>
 
               <div class="space-y-2 pt-2 border-t border-slate-800 text-xs">
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" id="chkRegistration" checked class="rounded bg-slate-950 border-slate-700 text-blue-500" />
-                  <span>Awtomatikong i-track ang <b>CompleteRegistration</b> (tuwing may nag-register)</span>
+                  <span>Awtomatikong i-track ang <b>CompleteRegistration</b></span>
                 </label>
                 <label class="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" id="chkDeposit" checked class="rounded bg-slate-950 border-slate-700 text-blue-500" />
-                  <span>Awtomatikong i-track ang <b>Purchase / Deposit</b> (tuwing may na-aprubahang cash in)</span>
+                  <span>Awtomatikong i-track ang <b>Purchase / Deposit</b></span>
                 </label>
               </div>
 
@@ -378,7 +621,6 @@
           <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-3">
             <h3 class="text-sm font-bold text-white uppercase tracking-wider">Live Dispatched Meta Signals</h3>
             <p class="text-xs text-slate-400">Mga naipadalang signal sa Facebook Server-Side Conversions API:</p>
-
             <div class="overflow-y-auto max-h-72 space-y-2" id="metaEventsList">
               <!-- Injected via JS -->
             </div>
@@ -390,79 +632,14 @@
   </div>
 
   <script>
-    // Tab switching
-    function switchTab(tabId) {
-      ['tabCashier', 'tabUsers', 'tabReferrals', 'tabWinRates', 'tabMeta'].forEach(id => {
-        document.getElementById(id).classList.add('hidden');
-        document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1)).className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white';
-      });
+    // Global State
+    let cachedTransactions = [];
+    let cachedUsers = [];
+    let cachedStaff = [];
+    let currentAdminRole = 'SUPER_ADMIN';
+    let currentAdminName = 'Master Admin';
 
-      document.getElementById(tabId).classList.remove('hidden');
-      const activeBtn = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
-      activeBtn.className = 'py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5';
-
-      if (tabId === 'tabCashier') loadTransactions();
-      if (tabId === 'tabUsers') loadUsers();
-      if (tabId === 'tabReferrals') loadReferrals();
-      if (tabId === 'tabWinRates') loadWinRates();
-      if (tabId === 'tabMeta') loadMeta();
-    }
-
-    // Auth
-    const loginSection = document.getElementById('loginSection');
-    const dashboardSection = document.getElementById('dashboardSection');
-    const loginForm = document.getElementById('adminLoginForm');
-    const loginError = document.getElementById('loginError');
-
-    if (sessionStorage.getItem('bet88_admin_authed') === 'true') {
-      showDashboard();
-    }
-
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      loginError.classList.add('hidden');
-      const phone = document.getElementById('adminPhone').value;
-      const password = document.getElementById('adminPass').value;
-
-      try {
-        const res = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone, password })
-        });
-        const data = await res.json();
-        if (data.success) {
-          sessionStorage.setItem('bet88_admin_authed', 'true');
-          showDashboard();
-        } else {
-          loginError.textContent = data.message || 'Maling impormasyon.';
-          loginError.classList.remove('hidden');
-        }
-      } catch (err) {
-        // Fallback credential checking
-        if (phone === '09060489645' && password === 'Dan051391') {
-          sessionStorage.setItem('bet88_admin_authed', 'true');
-          showDashboard();
-        } else {
-          loginError.textContent = 'Maling password o mobile number.';
-          loginError.classList.remove('hidden');
-        }
-      }
-    });
-
-    document.getElementById('adminLogoutBtn').addEventListener('click', () => {
-      sessionStorage.removeItem('bet88_admin_authed');
-      dashboardSection.classList.add('hidden');
-      loginSection.classList.remove('hidden');
-    });
-
-    function showDashboard() {
-      loginSection.classList.add('hidden');
-      dashboardSection.classList.remove('hidden');
-      loadTransactions();
-    }
-
-    // Data in LocalStorage for Vercel Static deployment sync
+    // Local Storage Helpers
     function getStoredData(key, fallback) {
       try {
         const item = localStorage.getItem('bet88_' + key);
@@ -477,133 +654,548 @@
       } catch (e) {}
     }
 
-    // 1. Transactions Queue & Approval
+    // Toast Notification Banner (Safe for iframes, no alerts)
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `p-3 rounded-xl shadow-2xl text-xs font-bold pointer-events-auto transition-all transform translate-y-0 opacity-100 flex items-center gap-2 ${
+        type === 'success'
+          ? 'bg-emerald-950 border border-emerald-500 text-emerald-300'
+          : type === 'error'
+          ? 'bg-red-950 border border-red-500 text-red-300'
+          : 'bg-amber-950 border border-amber-500 text-amber-300'
+      }`;
+      toast.innerHTML = `<span>${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span> <span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.remove(), 400);
+      }, 4000);
+    }
+
+    // Role-based Tab Permissions
+    const ROLE_TABS = {
+      SUPER_ADMIN: ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabSecurity', 'tabMeta'],
+      FINANCE_CASHIER: ['tabCashier'],
+      MARKETING_AFFILIATE: ['tabReferrals', 'tabMeta'],
+      GAME_OPERATIONS: ['tabUsers', 'tabWinRates'],
+    };
+
+    function applyRolePermissions(role, name) {
+      currentAdminRole = role || 'SUPER_ADMIN';
+      currentAdminName = name || 'Master Admin';
+
+      document.getElementById('adminDisplayName').textContent = `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`;
+
+      const allowedTabs = ROLE_TABS[currentAdminRole] || ROLE_TABS.SUPER_ADMIN;
+
+      // Show/Hide buttons
+      ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabSecurity', 'tabMeta'].forEach(id => {
+        const btn = document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1));
+        if (btn) {
+          if (allowedTabs.includes(id)) {
+            btn.classList.remove('hidden');
+          } else {
+            btn.classList.add('hidden');
+          }
+        }
+      });
+
+      // Switch to the first allowed tab
+      switchTab(allowedTabs[0]);
+    }
+
+    // Tab switching
+    function switchTab(tabId) {
+      const allTabIds = ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabSecurity', 'tabMeta'];
+      allTabIds.forEach(id => {
+        const el = document.getElementById(id);
+        const btn = document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1));
+        if (el) el.classList.add('hidden');
+        if (btn) btn.className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white';
+      });
+
+      const activeSection = document.getElementById(tabId);
+      const activeBtn = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
+      if (activeSection) activeSection.classList.remove('hidden');
+      if (activeBtn) activeBtn.className = 'py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5';
+
+      if (tabId === 'tabCashier') loadTransactions();
+      if (tabId === 'tabUsers') loadUsers();
+      if (tabId === 'tabStaff') loadStaffAccounts();
+      if (tabId === 'tabReferrals') loadReferrals();
+      if (tabId === 'tabWinRates') loadWinRates();
+      if (tabId === 'tabSecurity') loadSecurityTab();
+      if (tabId === 'tabMeta') loadMeta();
+    }
+
+    // Authentication Logic
+    const loginSection = document.getElementById('loginSection');
+    const dashboardSection = document.getElementById('dashboardSection');
+    const loginForm = document.getElementById('adminLoginForm');
+    const loginError = document.getElementById('loginError');
+
+    const savedAuth = sessionStorage.getItem('bet88_admin_authed');
+    const savedRole = sessionStorage.getItem('bet88_admin_role') || 'SUPER_ADMIN';
+    const savedName = sessionStorage.getItem('bet88_admin_name') || 'Master Admin';
+
+    if (savedAuth === 'true') {
+      showDashboard(savedRole, savedName);
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginError.classList.add('hidden');
+      const phone = document.getElementById('adminPhone').value.trim();
+      const password = document.getElementById('adminPass').value.trim();
+
+      // 1. Try Backend API login
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, password })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            sessionStorage.setItem('bet88_admin_authed', 'true');
+            sessionStorage.setItem('bet88_admin_role', data.role || 'SUPER_ADMIN');
+            sessionStorage.setItem('bet88_admin_name', data.name || 'Master Admin');
+            showDashboard(data.role || 'SUPER_ADMIN', data.name || 'Master Admin');
+            return;
+          }
+        }
+      } catch (err) {}
+
+      // 2. Check Firestore admin credentials
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, getDoc, collection, getDocs } = window.bet88Firestore;
+
+          // Master credentials check
+          const adminDoc = await getDoc(doc(db, 'settings', 'admin_credentials'));
+          const master = adminDoc.exists() ? adminDoc.data() : { phone: '09060489645', password: 'Dan051391' };
+
+          if (phone === master.phone && password === master.password) {
+            sessionStorage.setItem('bet88_admin_authed', 'true');
+            sessionStorage.setItem('bet88_admin_role', 'SUPER_ADMIN');
+            sessionStorage.setItem('bet88_admin_name', 'Master Admin');
+            showDashboard('SUPER_ADMIN', 'Master Admin');
+            return;
+          }
+
+          // Staff credentials check
+          const staffSnaps = await getDocs(collection(db, 'staff_accounts'));
+          let matchedStaff = null;
+          staffSnaps.forEach(d => {
+            const s = d.data();
+            if (s.username === phone && s.password === password) {
+              matchedStaff = s;
+            }
+          });
+
+          if (matchedStaff) {
+            if (matchedStaff.status === 'SUSPENDED') {
+              loginError.textContent = 'Ang staff account na ito ay kasalukuyang nakasuspinde.';
+              loginError.classList.remove('hidden');
+              return;
+            }
+            sessionStorage.setItem('bet88_admin_authed', 'true');
+            sessionStorage.setItem('bet88_admin_role', matchedStaff.role || 'FINANCE_CASHIER');
+            sessionStorage.setItem('bet88_admin_name', matchedStaff.name || 'Staff');
+            showDashboard(matchedStaff.role, matchedStaff.name);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Firestore auth check:', err);
+      }
+
+      // 3. Fallback default credential checking
+      const localCreds = getStoredData('admin_credentials', { phone: '09060489645', password: 'Dan051391' });
+      if (phone === localCreds.phone && password === localCreds.password) {
+        sessionStorage.setItem('bet88_admin_authed', 'true');
+        sessionStorage.setItem('bet88_admin_role', 'SUPER_ADMIN');
+        sessionStorage.setItem('bet88_admin_name', 'Master Admin');
+        showDashboard('SUPER_ADMIN', 'Master Admin');
+        return;
+      }
+
+      loginError.textContent = 'Maling password o username.';
+      loginError.classList.remove('hidden');
+    });
+
+    document.getElementById('adminLogoutBtn').addEventListener('click', () => {
+      sessionStorage.removeItem('bet88_admin_authed');
+      sessionStorage.removeItem('bet88_admin_role');
+      sessionStorage.removeItem('bet88_admin_name');
+      dashboardSection.classList.add('hidden');
+      loginSection.classList.remove('hidden');
+    });
+
+    function showDashboard(role = 'SUPER_ADMIN', name = 'Master Admin') {
+      loginSection.classList.add('hidden');
+      dashboardSection.classList.remove('hidden');
+      applyRolePermissions(role, name);
+    }
+
+    // ==========================================
+    // 1. CASHIER TRANSACTIONS APPROVAL & FILTERING
+    // ==========================================
     async function loadTransactions() {
       let transactions = [];
+
+      // 1. Try Firestore direct read
       try {
-        // Try Firestore direct read if available
         if (window.bet88Firestore) {
           const { db, collection, getDocs } = window.bet88Firestore;
           const querySnap = await getDocs(collection(db, 'transactions'));
           transactions = querySnap.docs.map(d => ({ id: d.id, ...d.data() }));
         }
       } catch (err) {
-        console.warn('Firestore transactions read failed:', err);
+        console.warn('Firestore transactions error:', err);
       }
 
-      if (transactions.length === 0) {
-        try {
-          const res = await fetch('/api/admin/transactions');
+      // 2. Fetch from backend API
+      try {
+        const res = await fetch('/api/admin/transactions');
+        if (res.ok) {
           const data = await res.json();
-          if (data.success) transactions = data.transactions;
-        } catch (err) {
-          transactions = getStoredData('transactions', []);
+          if (data.success && data.transactions) {
+            const apiTxs = data.transactions;
+            const merged = new Map();
+            transactions.forEach(t => merged.set(t.id, t));
+            apiTxs.forEach(t => {
+              if (!merged.has(t.id)) merged.set(t.id, t);
+            });
+            transactions = Array.from(merged.values());
+          }
         }
-      }
+      } catch (err) {}
 
-      const pending = transactions.filter(t => t.status === 'PENDING');
-      document.getElementById('pendingCount').textContent = pending.length;
+      // 3. Fallback to localStorage
+      const localTxs = getStoredData('transactions', []);
+      const mergedMap = new Map();
+      transactions.forEach(t => mergedMap.set(t.id, t));
+      localTxs.forEach(t => {
+        if (!mergedMap.has(t.id)) mergedMap.set(t.id, t);
+      });
+      transactions = Array.from(mergedMap.values());
 
+      cachedTransactions = transactions;
+      calculateCashierStats(transactions);
+      renderPendingQueue(transactions);
+      renderFilteredTransactions();
+    }
+
+    function calculateCashierStats(txs) {
+      let approvedDeposits = 0;
+      let approvedDepositsCount = 0;
+      let approvedWithdrawals = 0;
+      let approvedWithdrawalsCount = 0;
+      let pendingTotal = 0;
+      let pendingCount = 0;
+
+      txs.forEach(t => {
+        const amt = parseFloat(t.amount) || 0;
+        if (t.status === 'APPROVED' || t.status === 'COMPLETED') {
+          if (t.type === 'DEPOSIT') {
+            approvedDeposits += amt;
+            approvedDepositsCount++;
+          } else if (t.type === 'WITHDRAWAL') {
+            approvedWithdrawals += amt;
+            approvedWithdrawalsCount++;
+          }
+        } else if (t.status === 'PENDING') {
+          pendingTotal += amt;
+          pendingCount++;
+        }
+      });
+
+      const netCashflow = approvedDeposits - approvedWithdrawals;
+
+      document.getElementById('statApprovedDeposits').textContent = `₱${approvedDeposits.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('statApprovedDepositsCount').textContent = `${approvedDepositsCount} transaksyon`;
+
+      document.getElementById('statApprovedWithdrawals').textContent = `₱${approvedWithdrawals.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('statApprovedWithdrawalsCount').textContent = `${approvedWithdrawalsCount} transaksyon`;
+
+      document.getElementById('statPendingTotal').textContent = `₱${pendingTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('statPendingCount').textContent = `${pendingCount} nakabinbing kahilingan`;
+
+      document.getElementById('statNetCashflow').textContent = `₱${netCashflow.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('statNetCashflow').className = `text-xl font-bold font-mono mt-1 block ${netCashflow >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+    }
+
+    function renderPendingQueue(txs) {
+      const pending = txs.filter(t => t.status === 'PENDING');
       const pendingTbody = document.getElementById('pendingTbody');
+
       if (pending.length === 0) {
-        pendingTbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending requests sa kasalukuyan. Lahat ay tapos na.</td></tr>';
-      } else {
-        pendingTbody.innerHTML = '';
-        pending.forEach(t => {
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-slate-900/80';
-          tr.innerHTML = `
-            <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.type === 'DEPOSIT' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'}">${t.type}</span></td>
-            <td class="p-3 text-slate-200 font-bold">${t.userPhone}</td>
-            <td class="p-3 text-slate-300">${t.method || 'Cashier Load'}</td>
-            <td class="p-3 font-bold text-amber-400 text-sm">₱${(t.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-            <td class="p-3 text-slate-400">${t.referenceNo || '-'} ${t.recipientAccount ? '· ' + t.recipientAccount : ''}</td>
-            <td class="p-3 text-slate-500">${t.timestamp || 'Today'}</td>
-            <td class="p-3 text-right space-x-2">
-              <button onclick="approveTransaction('${t.id}')" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold uppercase transition-colors">
-                Aprubahan
-              </button>
-              <button onclick="rejectTransaction('${t.id}')" class="px-2.5 py-1 bg-red-800 hover:bg-red-700 text-white rounded text-[11px] font-bold uppercase transition-colors">
-                Tanggihan
-              </button>
-            </td>
-          `;
-          pendingTbody.appendChild(tr);
-        });
+        pendingTbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-slate-500">Walang pending requests sa kasalukuyan. Lahat ng cash-in at cash-out ay naproseso na.</td></tr>';
+        return;
       }
 
-      // All history
+      pendingTbody.innerHTML = '';
+      pending.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-900/90 transition-colors';
+        tr.innerHTML = `
+          <td class="p-3">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+              t.type === 'DEPOSIT'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+            }">${t.type}</span>
+          </td>
+          <td class="p-3 text-slate-200 font-bold">${t.userPhone || '-'}</td>
+          <td class="p-3 text-slate-300">${t.method || 'GCash / Maya'}</td>
+          <td class="p-3 font-bold text-amber-400 text-sm">₱${(parseFloat(t.amount) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="p-3 text-slate-400 font-mono text-[11px]">${t.referenceNo || '-'} ${t.recipientAccount ? '· ' + t.recipientAccount : ''}</td>
+          <td class="p-3 text-slate-500 text-[11px]">${t.timestamp || 'Today'}</td>
+          <td class="p-3 text-right space-x-2">
+            <button onclick="approveTransaction('${t.id}')" id="btnApprove_${t.id}" class="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:brightness-110 active:scale-95 text-white rounded-lg text-xs font-bold uppercase transition-all shadow-md shadow-emerald-500/20">
+              Aprubahan
+            </button>
+            <button onclick="rejectTransaction('${t.id}')" id="btnReject_${t.id}" class="px-2.5 py-1.5 bg-red-900/80 hover:bg-red-800 active:scale-95 text-red-200 rounded-lg text-xs font-bold uppercase transition-all">
+              Tanggihan
+            </button>
+          </td>
+        `;
+        pendingTbody.appendChild(tr);
+      });
+    }
+
+    function renderFilteredTransactions() {
+      const type = document.getElementById('filterType').value;
+      const status = document.getElementById('filterStatus').value;
+      const sort = document.getElementById('filterSort').value;
+      const search = document.getElementById('filterSearch').value.trim().toLowerCase();
+
+      let list = [...cachedTransactions];
+
+      if (type !== 'ALL') {
+        list = list.filter(t => t.type === type);
+      }
+      if (status !== 'ALL') {
+        list = list.filter(t => t.status === status);
+      }
+      if (search) {
+        list = list.filter(t =>
+          (t.userPhone && t.userPhone.toLowerCase().includes(search)) ||
+          (t.referenceNo && t.referenceNo.toLowerCase().includes(search)) ||
+          (t.method && t.method.toLowerCase().includes(search))
+        );
+      }
+
+      // Sort
+      if (sort === 'NEWEST') {
+        list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      } else if (sort === 'OLDEST') {
+        list.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+      } else if (sort === 'AMOUNT_DESC') {
+        list.sort((a, b) => (parseFloat(b.amount) || 0) - (parseFloat(a.amount) || 0));
+      } else if (sort === 'AMOUNT_ASC') {
+        list.sort((a, b) => (parseFloat(a.amount) || 0) - (parseFloat(b.amount) || 0));
+      }
+
+      // Calculate filtered total sum
+      let sum = 0;
+      list.forEach(t => sum += (parseFloat(t.amount) || 0));
+      document.getElementById('filteredTotalSum').textContent = `₱${sum.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('filteredCount').textContent = `(${list.length} transaksyon)`;
+
       const allTbody = document.getElementById('allTbody');
+      if (list.length === 0) {
+        allTbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-500">Walang nahanap na transaksyon para sa napiling filter.</td></tr>';
+        return;
+      }
+
       allTbody.innerHTML = '';
-      transactions.forEach(t => {
+      list.forEach(t => {
+        const amt = parseFloat(t.amount) || 0;
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-900/60';
         tr.innerHTML = `
-          <td class="p-3"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${t.status === 'APPROVED' || t.status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-500/10' : t.status === 'REJECTED' ? 'text-red-400 bg-red-500/10' : 'text-amber-400 bg-amber-500/10'}">${t.status}</span></td>
-          <td class="p-3 font-semibold">${t.type}</td>
-          <td class="p-3 text-slate-300">${t.userPhone}</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+              t.status === 'APPROVED' || t.status === 'COMPLETED'
+                ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                : t.status === 'REJECTED'
+                ? 'text-red-400 bg-red-500/10 border border-red-500/20'
+                : 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
+            }">${t.status}</span>
+          </td>
+          <td class="p-3 font-semibold ${t.type === 'DEPOSIT' ? 'text-emerald-400' : 'text-cyan-400'}">${t.type}</td>
+          <td class="p-3 text-slate-200 font-bold">${t.userPhone || '-'}</td>
           <td class="p-3 text-slate-400">${t.method || '-'}</td>
-          <td class="p-3 font-bold text-white">₱${(t.amount || 0).toLocaleString()}</td>
-          <td class="p-3 text-slate-500 font-mono">${t.referenceNo || '-'}</td>
+          <td class="p-3 font-bold text-white font-mono">₱${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="p-3 text-slate-400 font-mono text-[11px]">${t.referenceNo || '-'}</td>
+          <td class="p-3 text-slate-500 text-[11px]">${t.timestamp || 'Today'}</td>
           <td class="p-3 text-slate-400 text-[11px]">${t.approvedBy || '-'}</td>
         `;
         allTbody.appendChild(tr);
       });
     }
 
+    // Direct 1-Click Approve Transaction with Automatic Balance Crediting
     async function approveTransaction(transactionId) {
-      if (!confirm('Sigurado ka bang nais mong APRUBAHAN ang transaksyong ito?')) return;
-      try {
-        if (window.bet88Firestore) {
-          const { db, doc, updateDoc } = window.bet88Firestore;
-          await updateDoc(doc(db, 'transactions', transactionId), {
-            status: 'APPROVED',
-            approvedBy: 'Admin: 09060489645'
-          });
-        }
-      } catch (err) {
-        console.warn(err);
+      const btn = document.getElementById(`btnApprove_${transactionId}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Ina-aprubahan...';
       }
 
-      // Update local storage backup as well
-      let txs = getStoredData('transactions', []);
-      const target = txs.find(t => t.id === transactionId);
-      if (target) {
-        target.status = 'APPROVED';
-        target.approvedBy = 'Admin: 09060489645';
-        setStoredData('transactions', txs);
+      const tx = cachedTransactions.find(t => t.id === transactionId);
+      if (!tx) {
+        showToast('Transaction hindi nahanap.', 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Aprubahan'; }
+        return;
       }
-      alert('Transaction successfully APPROVED!');
+
+      const amount = parseFloat(tx.amount) || 0;
+      const phone = tx.userPhone;
+
+      // 1. Update in Firestore
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, getDoc, updateDoc, setDoc } = window.bet88Firestore;
+          // Update transaction status
+          await updateDoc(doc(db, 'transactions', transactionId), {
+            status: 'APPROVED',
+            approvedBy: `${currentAdminName} (${currentAdminRole})`,
+            approvedAt: new Date().toISOString()
+          });
+
+          // If DEPOSIT, credit the player's balance in Firestore!
+          if (tx.type === 'DEPOSIT' && phone) {
+            const userRef = doc(db, 'users', phone);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+              const u = userSnap.data();
+              const prevBal = parseFloat(u.balance) || 0;
+              const prevDep = parseFloat(u.totalDeposited) || 0;
+              await updateDoc(userRef, {
+                balance: Math.round((prevBal + amount) * 100) / 100,
+                totalDeposited: Math.round((prevDep + amount) * 100) / 100,
+                vipPoints: (u.vipPoints || 0) + Math.floor(amount / 10),
+                lastDepositDate: new Date().toISOString().split('T')[0]
+              });
+            } else {
+              await setDoc(userRef, {
+                phone,
+                username: 'Player_' + phone.slice(-4),
+                balance: amount,
+                totalDeposited: amount,
+                vipLevel: 1,
+                vipPoints: Math.floor(amount / 10),
+                registeredAt: new Date().toISOString().split('T')[0]
+              }, { merge: true });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Firestore approve sync:', err);
+      }
+
+      // 2. Notify backend Express server
+      try {
+        await fetch('/api/admin/transactions/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId, userPhone: phone, amount, type: tx.type })
+        });
+      } catch (err) {}
+
+      // 3. Update localStorage fallback
+      let txs = getStoredData('transactions', []);
+      const localTarget = txs.find(t => t.id === transactionId);
+      if (localTarget) {
+        localTarget.status = 'APPROVED';
+        localTarget.approvedBy = `${currentAdminName} (${currentAdminRole})`;
+      } else {
+        txs.unshift({ ...tx, status: 'APPROVED', approvedBy: `${currentAdminName} (${currentAdminRole})` });
+      }
+      setStoredData('transactions', txs);
+
+      // If DEPOSIT, update localStorage registered_accounts and currentUser
+      if (tx.type === 'DEPOSIT' && phone) {
+        const localAccounts = getStoredData('registered_accounts', {});
+        if (localAccounts[phone]) {
+          localAccounts[phone].balance = Math.round(((parseFloat(localAccounts[phone].balance) || 0) + amount) * 100) / 100;
+          localAccounts[phone].totalDeposited = Math.round(((parseFloat(localAccounts[phone].totalDeposited) || 0) + amount) * 100) / 100;
+          setStoredData('registered_accounts', localAccounts);
+        }
+        const currentLocal = getStoredData('currentUser', null);
+        if (currentLocal && currentLocal.phone === phone) {
+          currentLocal.balance = Math.round(((parseFloat(currentLocal.balance) || 0) + amount) * 100) / 100;
+          currentLocal.totalDeposited = Math.round(((parseFloat(currentLocal.totalDeposited) || 0) + amount) * 100) / 100;
+          setStoredData('currentUser', currentLocal);
+        }
+      }
+
+      showToast(`Tagumpay! Na-aprubahan ang ₱${amount.toLocaleString()} deposit para kay ${phone}. Pumasok na ang balanse!`, 'success');
       loadTransactions();
     }
 
+    // Reject Transaction
     async function rejectTransaction(transactionId) {
-      const reason = prompt('Ilagay ang dahilan ng pag-tanggi (Rejection Reason):', 'Invalid Reference Number');
+      const reason = prompt('Ilagay ang dahilan ng pag-tanggi:', 'Reference Verification Failed');
       if (reason === null) return;
+
+      const tx = cachedTransactions.find(t => t.id === transactionId);
+      if (!tx) return;
+
+      // 1. Update in Firestore
       try {
         if (window.bet88Firestore) {
-          const { db, doc, updateDoc } = window.bet88Firestore;
+          const { db, doc, updateDoc, getDoc } = window.bet88Firestore;
           await updateDoc(doc(db, 'transactions', transactionId), {
             status: 'REJECTED',
             rejectionReason: reason,
-            approvedBy: 'Admin: 09060489645'
+            approvedBy: `${currentAdminName} (${currentAdminRole})`
           });
+
+          // If withdrawal was rejected, refund the player's balance!
+          if (tx.type === 'WITHDRAWAL' && tx.userPhone) {
+            const userRef = doc(db, 'users', tx.userPhone);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+              const u = userSnap.data();
+              const prevBal = parseFloat(u.balance) || 0;
+              await updateDoc(userRef, { balance: Math.round((prevBal + (parseFloat(tx.amount) || 0)) * 100) / 100 });
+            }
+          }
         }
       } catch (err) {}
 
+      // 2. Notify backend Express API
+      try {
+        await fetch('/api/admin/transactions/reject', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId, reason })
+        });
+      } catch (err) {}
+
+      // 3. Update localStorage
       let txs = getStoredData('transactions', []);
-      const target = txs.find(t => t.id === transactionId);
-      if (target) {
-        target.status = 'REJECTED';
-        target.rejectionReason = reason;
-        target.approvedBy = 'Admin: 09060489645';
-        setStoredData('transactions', txs);
+      const localTarget = txs.find(t => t.id === transactionId);
+      if (localTarget) {
+        localTarget.status = 'REJECTED';
+        localTarget.rejectionReason = reason;
+        localTarget.approvedBy = `${currentAdminName} (${currentAdminRole})`;
       }
-      alert('Transaction REJECTED. Reason: ' + reason);
+      setStoredData('transactions', txs);
+
+      showToast(`Transaction ${transactionId} ay na-REJECTED.`, 'error');
       loadTransactions();
     }
 
-    // 2. Users List & Manual Deposit Functionality
+    // ==========================================
+    // 2. PLAYERS TABLE, TURNOVER & ANALYTICS
+    // ==========================================
     async function loadUsers() {
       let users = [];
 
@@ -618,61 +1210,120 @@
         console.warn('Firestore read error:', err);
       }
 
-      // 2. Combine with LocalStorage registered accounts
+      // 2. Read from backend API
+      try {
+        const res = await fetch('/api/admin/users');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.users) {
+            const merged = new Map();
+            users.forEach(u => merged.set(u.phone, u));
+            data.users.forEach(u => {
+              if (!merged.has(u.phone)) merged.set(u.phone, u);
+            });
+            users = Array.from(merged.values());
+          }
+        }
+      } catch (err) {}
+
+      // 3. Combine with LocalStorage registered accounts
       const localUsersObj = getStoredData('registered_accounts', {});
       const localUsers = Object.values(localUsersObj);
-
       const mergedMap = new Map();
       users.forEach(u => mergedMap.set(u.phone, u));
       localUsers.forEach(u => {
         if (!mergedMap.has(u.phone)) mergedMap.set(u.phone, u);
       });
+      users = Array.from(mergedMap.values());
 
-      const userList = Array.from(mergedMap.values());
-
-      const tbody = document.getElementById('usersTbody');
-      if (userList.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-500">Walang naka-save na users. Lahat ng bagong mag-reregister sa main site ay lalabas dito.</td></tr>';
-      } else {
-        tbody.innerHTML = '';
-        userList.forEach(u => {
-          const currentBalance = typeof u.balance === 'number' ? u.balance : 0;
-          const tr = document.createElement('tr');
-          tr.className = 'hover:bg-slate-900/60';
-          tr.innerHTML = `
-            <td class="p-3 font-bold text-amber-400">${u.phone}</td>
-            <td class="p-3 text-slate-200">${u.username || 'Player_' + (u.phone || '').slice(-4)}</td>
-            <td class="p-3 font-bold text-emerald-400 font-mono text-sm">₱${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-            <td class="p-3 font-mono text-slate-300">₱${(u.totalDeposited || 0).toLocaleString()}</td>
-            <td class="p-3 font-bold text-purple-400">VIP ${u.vipLevel || 1}</td>
-            <td class="p-3 font-mono text-cyan-300">${u.referralCode || 'BET88VIP'}</td>
-            <td class="p-3 text-slate-500">${u.registeredAt || '2026-09-28'}</td>
-            <td class="p-3 text-right">
-              <button onclick="promptManualDeposit('${u.phone}', ${currentBalance})" class="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:brightness-110 text-slate-950 font-black rounded-lg text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20">
-                ➕ Mag-Deposit (Credit)
-              </button>
-            </td>
-          `;
-          tbody.appendChild(tr);
-        });
-      }
+      cachedUsers = users;
+      calculatePlayerAnalytics(users);
+      renderPlayersTable(users);
     }
 
-    // Direct manual deposit to a specific user
-    async function promptManualDeposit(phone, currentBal) {
-      const amountStr = prompt(`Magkano ang nais mong I-DEPOSIT/I-CREDIT sa profile ni ${phone}?\n\nKasalukuyang Balanse: ₱${currentBal.toLocaleString()}\nIlagay ang halaga sa PHP (e.g. 500, 1000, 5000):`, "500");
-      if (!amountStr) return;
+    function calculatePlayerAnalytics(userList) {
+      let totalTurnover = 0;
+      let totalWon = 0;
 
-      const amount = parseFloat(amountStr);
-      if (isNaN(amount) || amount <= 0) {
-        alert('Mangyaring maglagay ng wastong numero.');
+      userList.forEach(u => {
+        totalTurnover += parseFloat(u.turnover) || 0;
+        totalWon += parseFloat(u.totalWon) || 0;
+      });
+
+      const ggr = totalTurnover - totalWon;
+
+      document.getElementById('statTotalUsers').textContent = userList.length.toLocaleString();
+      document.getElementById('statTotalTurnover').textContent = `₱${totalTurnover.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('statTotalPlayerWon').textContent = `₱${totalWon.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('statHouseGGR').textContent = `₱${ggr.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+      document.getElementById('statHouseGGR').className = `text-xl font-bold font-mono mt-1 block ${ggr >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+    }
+
+    function renderPlayersTable(userList) {
+      document.getElementById('playerCountLabel').textContent = `${userList.length} manlalaro`;
+      const tbody = document.getElementById('usersTbody');
+
+      if (userList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="p-4 text-center text-slate-500">Walang naka-save na users. Lahat ng bagong mag-reregister sa site ay lalabas dito.</td></tr>';
         return;
       }
 
-      await executeCreditToUser(phone, amount, 'Admin Direct Deposit / Cashier Credit');
+      tbody.innerHTML = '';
+      userList.forEach(u => {
+        const bal = parseFloat(u.balance) || 0;
+        const turnover = parseFloat(u.turnover) || 0;
+        const totalWon = parseFloat(u.totalWon) || 0;
+        const totalLost = parseFloat(u.totalLost) || 0;
+        const housePL = turnover - totalWon;
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-900/60 transition-colors';
+        tr.innerHTML = `
+          <td class="p-3 font-bold text-amber-400">${u.phone}</td>
+          <td class="p-3 text-slate-200">${u.username || 'Player_' + (u.phone || '').slice(-4)}</td>
+          <td class="p-3 font-bold text-white font-mono">₱${bal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="p-3 font-mono text-amber-400 font-bold">₱${turnover.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="p-3 font-mono text-cyan-400">₱${totalWon.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="p-3 font-mono text-red-400">₱${totalLost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          <td class="p-3 font-mono font-bold ${housePL >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+            ${housePL >= 0 ? '+' : ''}₱${housePL.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </td>
+          <td class="p-3 font-mono text-slate-300">₱${(parseFloat(u.totalDeposited) || 0).toLocaleString()}</td>
+          <td class="p-3 font-bold text-purple-400">VIP ${u.vipLevel || 1}</td>
+          <td class="p-3 text-right">
+            <button onclick="promptManualDeposit('${u.phone}', ${bal})" class="px-2.5 py-1 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:brightness-110 active:scale-95 text-slate-950 font-black rounded text-[11px] uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20">
+              ➕ Mag-Credit
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
-    // Form submit for quick deposit
+    function filterPlayersTable() {
+      const q = document.getElementById('searchPlayerInput').value.trim().toLowerCase();
+      if (!q) {
+        renderPlayersTable(cachedUsers);
+        return;
+      }
+      const filtered = cachedUsers.filter(u =>
+        (u.phone && u.phone.toLowerCase().includes(q)) ||
+        (u.username && u.username.toLowerCase().includes(q))
+      );
+      renderPlayersTable(filtered);
+    }
+
+    function promptManualDeposit(phone, currentBal) {
+      const amountStr = prompt(`Magkano ang nais mong I-CREDIT sa profile ni ${phone}?\n\nKasalukuyang Balanse: ₱${currentBal.toLocaleString()}\nIlagay ang halaga sa PHP (e.g. 500, 1000):`, "500");
+      if (!amountStr) return;
+      const amount = parseFloat(amountStr);
+      if (isNaN(amount) || amount <= 0) {
+        showToast('Mangyaring maglagay ng wastong numero.', 'error');
+        return;
+      }
+      executeCreditToUser(phone, amount, 'Admin Direct Deposit / Cashier Credit');
+    }
+
     document.getElementById('quickDepositForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const phone = document.getElementById('quickPhone').value.trim();
@@ -680,166 +1331,359 @@
       const note = document.getElementById('quickNote').value.trim() || 'Admin Direct Load';
 
       if (!phone || isNaN(amount) || amount <= 0) {
-        alert('Paki-lagay ang kumpletong impormasyon.');
+        showToast('Paki-lagay ang kumpletong impormasyon.', 'error');
         return;
       }
-
       await executeCreditToUser(phone, amount, note);
       document.getElementById('quickAmount').value = '';
     });
 
     async function executeCreditToUser(phone, amount, note) {
-      const feedback = document.getElementById('quickDepositFeedback');
-      feedback.className = 'text-xs p-2 rounded bg-amber-950 border border-amber-500 text-amber-300 block';
-      feedback.textContent = `Ipinoproseso ang ₱${amount.toLocaleString()} deposit para kay ${phone}...`;
-
       let updatedBalance = 0;
 
       // 1. Update in Firestore
       try {
         if (window.bet88Firestore) {
-          const { db, doc, getDoc, setDoc, updateDoc, collection, addDoc } = window.bet88Firestore;
-          const userDocRef = doc(db, 'users', phone);
-          const userSnap = await getDoc(userDocRef);
+          const { db, doc, getDoc, setDoc, updateDoc } = window.bet88Firestore;
+          const userRef = doc(db, 'users', phone);
+          const userSnap = await getDoc(userRef);
 
           if (userSnap.exists()) {
-            const currentData = userSnap.data();
-            const prevBal = currentData.balance || 0;
-            const prevDep = currentData.totalDeposited || 0;
+            const u = userSnap.data();
+            const prevBal = parseFloat(u.balance) || 0;
+            const prevDep = parseFloat(u.totalDeposited) || 0;
             updatedBalance = Math.round((prevBal + amount) * 100) / 100;
-            const updatedDeposited = Math.round((prevDep + amount) * 100) / 100;
-
-            await updateDoc(userDocRef, {
+            await updateDoc(userRef, {
               balance: updatedBalance,
-              totalDeposited: updatedDeposited
+              totalDeposited: Math.round((prevDep + amount) * 100) / 100,
+              vipPoints: (u.vipPoints || 0) + Math.floor(amount / 10)
             });
           } else {
-            // Create user document if not yet initialized
             updatedBalance = amount;
-            await setDoc(userDocRef, {
+            await setDoc(userRef, {
               phone,
               username: 'Player_' + phone.slice(-4),
               balance: amount,
               totalDeposited: amount,
               vipLevel: 1,
-              vipPoints: amount,
-              referralCode: 'BET88VIP',
+              vipPoints: Math.floor(amount / 10),
               registeredAt: new Date().toISOString().split('T')[0]
             }, { merge: true });
           }
 
           // Record as APPROVED deposit transaction in Firestore
-          await addDoc(collection(db, 'transactions'), {
-            id: 'tx_admin_' + Date.now(),
+          const txId = 'tx_admin_' + Date.now();
+          await setDoc(doc(db, 'transactions', txId), {
+            id: txId,
             userId: phone,
             userPhone: phone,
             type: 'DEPOSIT',
-            amount: amount,
+            amount,
             currency: 'PHP',
             status: 'APPROVED',
-            method: note || 'Cashier Manual Credit',
+            method: note || 'Cashier Direct Load',
             referenceNo: 'ADMIN-DEP-' + Math.floor(100000 + Math.random() * 900000),
             timestamp: new Date().toLocaleTimeString(),
             createdAt: new Date().toISOString(),
-            approvedBy: 'Admin: 09060489645'
+            approvedBy: `${currentAdminName} (${currentAdminRole})`
           });
         }
       } catch (err) {
-        console.warn('Firestore update note:', err);
+        console.warn('Firestore credit note:', err);
       }
 
-      // 2. Also sync to localStorage
+      // 2. Notify backend
+      try {
+        await fetch('/api/admin/users/credit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, amount, note })
+        });
+      } catch (err) {}
+
+      // 3. Sync to localStorage
       const localUsers = getStoredData('registered_accounts', {});
       if (!localUsers[phone]) {
-        localUsers[phone] = {
-          phone,
-          username: 'Player_' + phone.slice(-4),
-          balance: amount,
-          totalDeposited: amount,
-          vipLevel: 1,
-          vipPoints: amount,
-          referralCode: 'BET88VIP',
-          registeredAt: new Date().toISOString().split('T')[0]
-        };
+        localUsers[phone] = { phone, username: 'Player_' + phone.slice(-4), balance: amount, totalDeposited: amount, vipLevel: 1 };
         updatedBalance = amount;
       } else {
-        localUsers[phone].balance = Math.round(((localUsers[phone].balance || 0) + amount) * 100) / 100;
-        localUsers[phone].totalDeposited = Math.round(((localUsers[phone].totalDeposited || 0) + amount) * 100) / 100;
+        localUsers[phone].balance = Math.round(((parseFloat(localUsers[phone].balance) || 0) + amount) * 100) / 100;
+        localUsers[phone].totalDeposited = Math.round(((parseFloat(localUsers[phone].totalDeposited) || 0) + amount) * 100) / 100;
         updatedBalance = localUsers[phone].balance;
       }
       setStoredData('registered_accounts', localUsers);
 
-      // If this player is the currently active local session, sync their live balance!
       const currentLocal = getStoredData('currentUser', null);
       if (currentLocal && currentLocal.phone === phone) {
         currentLocal.balance = updatedBalance;
-        currentLocal.totalDeposited = (currentLocal.totalDeposited || 0) + amount;
         setStoredData('currentUser', currentLocal);
       }
 
-      // Record in local transactions
-      const txs = getStoredData('transactions', []);
-      txs.unshift({
-        id: 'tx_admin_' + Date.now(),
-        userId: phone,
-        userPhone: phone,
-        type: 'DEPOSIT',
-        amount: amount,
-        currency: 'PHP',
-        status: 'APPROVED',
-        method: note || 'Cashier Manual Credit',
-        referenceNo: 'ADMIN-DEP-' + Math.floor(100000 + Math.random() * 900000),
-        timestamp: 'Today, ' + new Date().toLocaleTimeString(),
-        createdAt: new Date().toISOString(),
-        approvedBy: 'Admin: 09060489645'
-      });
-      setStoredData('transactions', txs);
-
-      feedback.className = 'text-xs p-2.5 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 block';
-      feedback.innerHTML = `✅ <b>Tagumpay!</b> Na-credit na ang <b>₱${amount.toLocaleString()}</b> sa account ni <b>${phone}</b>! Bagong Balanse: <b>₱${updatedBalance.toLocaleString()}</b>.`;
-
-      alert(`✅ Tagumpay!\n\nNa-credit na ang ₱${amount.toLocaleString()} sa account ni ${phone}.\nBagong Balanse: ₱${updatedBalance.toLocaleString()}`);
+      showToast(`Na-credit na ang ₱${amount.toLocaleString()} kay ${phone}. Bagong Balanse: ₱${updatedBalance.toLocaleString()}`, 'success');
       loadUsers();
     }
 
-    function openManualDepositModal() {
-      const phone = prompt('Ilagay ang Mobile Number ng Player (e.g. 09060489645):');
-      if (!phone) return;
-      promptManualDeposit(phone.trim(), 0);
-    }
+    // ==========================================
+    // 3. STAFF ACCOUNTS & ROLE CONTROLLER
+    // ==========================================
+    async function loadStaffAccounts() {
+      let staffList = [];
 
-    // 3. Referrals
-    async function loadReferrals() {
-      let referrals = getStoredData('referrals', [
-        {
-          id: 'ref_1',
-          code: 'BET88VIP',
-          creatorName: 'Bet88 Official Partner',
-          signups: 18,
-          commissionRate: 2.0,
-        },
-        {
-          id: 'ref_2',
-          code: 'PINOY88',
-          creatorName: 'Manila Streamer Agency',
-          signups: 11,
-          commissionRate: 1.5,
+      // 1. Read from Firestore
+      try {
+        if (window.bet88Firestore) {
+          const { db, collection, getDocs } = window.bet88Firestore;
+          const snaps = await getDocs(collection(db, 'staff_accounts'));
+          staffList = snaps.docs.map(d => ({ id: d.id, ...d.data() }));
         }
+      } catch (err) {}
+
+      // 2. Fetch from backend API
+      try {
+        const res = await fetch('/api/admin/staff');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.staff) {
+            const merged = new Map();
+            staffList.forEach(s => merged.set(s.username, s));
+            data.staff.forEach(s => {
+              if (!merged.has(s.username)) merged.set(s.username, s);
+            });
+            staffList = Array.from(merged.values());
+          }
+        }
+      } catch (err) {}
+
+      // 3. Fallback localStorage
+      const localStaff = getStoredData('staff_accounts', [
+        { id: 'stf_1', name: 'Maria - Head Cashier', username: 'cashier01', role: 'FINANCE_CASHIER', status: 'ACTIVE', createdAt: '2026-09-30' },
+        { id: 'stf_2', name: 'Carlos - Marketing Agent', username: 'marketing01', role: 'MARKETING_AFFILIATE', status: 'ACTIVE', createdAt: '2026-09-30' }
       ]);
 
-      const tbody = document.getElementById('referralsTbody');
+      const mergedMap = new Map();
+      staffList.forEach(s => mergedMap.set(s.username, s));
+      localStaff.forEach(s => {
+        if (!mergedMap.has(s.username)) mergedMap.set(s.username, s);
+      });
+      staffList = Array.from(mergedMap.values());
+
+      cachedStaff = staffList;
+      renderStaffTable(staffList);
+    }
+
+    function renderStaffTable(staffList) {
+      const tbody = document.getElementById('staffTbody');
+      if (staffList.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Walang staff accounts sa kasalukuyan. Gumawa sa kaliwa.</td></tr>';
+        return;
+      }
+
       tbody.innerHTML = '';
-      const currentOrigin = window.location.origin;
-      referrals.forEach(r => {
+      staffList.forEach(s => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-900/60';
         tr.innerHTML = `
-          <td class="py-2.5 font-bold text-amber-400">${r.code}</td>
-          <td class="py-2.5 text-slate-200">${r.creatorName}</td>
-          <td class="py-2.5 font-bold text-white">${r.signups} players</td>
-          <td class="py-2.5 text-emerald-400">${r.commissionRate}%</td>
-          <td class="py-2.5 text-slate-400 font-mono text-[11px]">
-            <span class="bg-slate-950 px-2 py-1 rounded border border-slate-800 text-cyan-300 select-all">${currentOrigin}/?ref=${r.code}</span>
+          <td class="p-3 font-bold text-white">${s.name}</td>
+          <td class="p-3 font-mono text-amber-400 font-bold">${s.username}</td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+              s.role === 'FINANCE_CASHIER'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : s.role === 'MARKETING_AFFILIATE'
+                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                : s.role === 'GAME_OPERATIONS'
+                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+            }">${s.role.replace('_', ' ')}</span>
+          </td>
+          <td class="p-3">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${s.status === 'ACTIVE' ? 'bg-emerald-950 text-emerald-300' : 'bg-red-950 text-red-300'}">
+              ${s.status}
+            </span>
+          </td>
+          <td class="p-3 text-right space-x-2">
+            <button onclick="toggleStaffStatus('${s.id || s.username}', '${s.status}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[10px] font-bold">
+              ${s.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
+            </button>
+            <button onclick="deleteStaffAccount('${s.id || s.username}')" class="px-2 py-1 bg-red-950 hover:bg-red-900 text-red-300 rounded text-[10px] font-bold">
+              Delete
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('createStaffForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('staffNameInput').value.trim();
+      const username = document.getElementById('staffUserInput').value.trim().toLowerCase();
+      const password = document.getElementById('staffPassInput').value.trim();
+      const role = document.getElementById('staffRoleInput').value;
+
+      if (!name || !username || password.length < 6) {
+        showToast('Valid name, username, and min. 6 character password required.', 'error');
+        return;
+      }
+
+      const newStaff = {
+        id: 'stf_' + Date.now(),
+        name,
+        username,
+        password,
+        role,
+        status: 'ACTIVE',
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+
+      // 1. Save to Firestore
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, setDoc } = window.bet88Firestore;
+          await setDoc(doc(db, 'staff_accounts', newStaff.username), newStaff);
+        }
+      } catch (err) {}
+
+      // 2. Save to backend API
+      try {
+        await fetch('/api/admin/staff/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newStaff)
+        });
+      } catch (err) {}
+
+      // 3. Save to localStorage
+      const localStaff = getStoredData('staff_accounts', []);
+      const idx = localStaff.findIndex(s => s.username === username);
+      if (idx >= 0) localStaff[idx] = newStaff;
+      else localStaff.unshift(newStaff);
+      setStoredData('staff_accounts', localStaff);
+
+      showToast(`Staff account "${name}" created with role ${role}!`, 'success');
+      document.getElementById('staffNameInput').value = '';
+      document.getElementById('staffUserInput').value = '';
+      document.getElementById('staffPassInput').value = '';
+      loadStaffAccounts();
+    });
+
+    async function toggleStaffStatus(idOrUser, currentStatus) {
+      const newStatus = currentStatus === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, updateDoc } = window.bet88Firestore;
+          await updateDoc(doc(db, 'staff_accounts', idOrUser), { status: newStatus });
+        }
+      } catch (err) {}
+
+      const localStaff = getStoredData('staff_accounts', []);
+      const target = localStaff.find(s => s.id === idOrUser || s.username === idOrUser);
+      if (target) {
+        target.status = newStatus;
+        setStoredData('staff_accounts', localStaff);
+      }
+      showToast(`Staff status updated to ${newStatus}.`, 'info');
+      loadStaffAccounts();
+    }
+
+    async function deleteStaffAccount(idOrUser) {
+      if (!confirm('Sigurado ka bang nais mong tanggalin ang staff account na ito?')) return;
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, deleteDoc } = window.bet88Firestore;
+          await deleteDoc(doc(db, 'staff_accounts', idOrUser));
+        }
+      } catch (err) {}
+
+      let localStaff = getStoredData('staff_accounts', []);
+      localStaff = localStaff.filter(s => s.id !== idOrUser && s.username !== idOrUser);
+      setStoredData('staff_accounts', localStaff);
+
+      showToast('Staff account successfully removed.', 'info');
+      loadStaffAccounts();
+    }
+
+    // ==========================================
+    // 4. REFERRALS (CLOUD SYNC ACROSS BROWSERS)
+    // ==========================================
+    async function loadReferrals() {
+      let referrals = [];
+
+      // 1. Read directly from Firestore collection 'referrals'
+      try {
+        if (window.bet88Firestore) {
+          const { db, collection, getDocs, doc, setDoc } = window.bet88Firestore;
+          const snaps = await getDocs(collection(db, 'referrals'));
+          if (!snaps.empty) {
+            referrals = snaps.docs.map(d => ({ code: d.id, ...d.data() }));
+          } else {
+            // Seed defaults into Firestore so they exist on all desktops!
+            const defaults = [
+              { code: 'BET88VIP', creatorName: 'Bet88 Official Partner', signups: 18, commissionRate: 2.0 },
+              { code: 'PINOY88', creatorName: 'Manila Streamer Agency', signups: 11, commissionRate: 1.5 }
+            ];
+            for (const item of defaults) {
+              await setDoc(doc(db, 'referrals', item.code), item);
+            }
+            referrals = defaults;
+          }
+        }
+      } catch (err) {
+        console.warn('Firestore referrals read error:', err);
+      }
+
+      // 2. Read from backend API
+      try {
+        const res = await fetch('/api/admin/referrals');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.referrals) {
+            const merged = new Map();
+            referrals.forEach(r => merged.set(r.code, r));
+            data.referrals.forEach(r => {
+              if (!merged.has(r.code)) merged.set(r.code, r);
+            });
+            referrals = Array.from(merged.values());
+          }
+        }
+      } catch (err) {}
+
+      // 3. Fallback localStorage
+      const localRefs = getStoredData('referrals', [
+        { code: 'BET88VIP', creatorName: 'Bet88 Official Partner', signups: 18, commissionRate: 2.0 },
+        { code: 'PINOY88', creatorName: 'Manila Streamer Agency', signups: 11, commissionRate: 1.5 }
+      ]);
+      const mergedMap = new Map();
+      referrals.forEach(r => mergedMap.set(r.code, r));
+      localRefs.forEach(r => {
+        if (!mergedMap.has(r.code)) mergedMap.set(r.code, r);
+      });
+      referrals = Array.from(mergedMap.values());
+
+      renderReferralsTable(referrals);
+    }
+
+    function renderReferralsTable(referrals) {
+      const tbody = document.getElementById('referralsTbody');
+      tbody.innerHTML = '';
+      const currentOrigin = window.location.origin;
+
+      referrals.forEach(r => {
+        const link = `${currentOrigin}/?ref=${r.code}`;
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-900/60';
+        tr.innerHTML = `
+          <td class="p-3 font-bold text-amber-400">${r.code}</td>
+          <td class="p-3 text-slate-200 font-medium">${r.creatorName}</td>
+          <td class="p-3 font-bold text-white font-mono">${r.signups || 0} players</td>
+          <td class="p-3 text-emerald-400 font-bold">${r.commissionRate || 1.5}%</td>
+          <td class="p-3 text-slate-400 font-mono text-[11px]">
+            <span class="bg-slate-950 px-2 py-1 rounded border border-slate-800 text-cyan-300 select-all">${link}</span>
+          </td>
+          <td class="p-3 text-right">
+            <button onclick="navigator.clipboard.writeText('${link}'); showToast('Referral link copied to clipboard!');" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded text-xs font-bold">
+              Copy Link
+            </button>
           </td>
         `;
         tbody.appendChild(tr);
@@ -848,74 +1692,125 @@
 
     document.getElementById('createRefForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const code = document.getElementById('refCodeInput').value.trim().toUpperCase();
-      const creatorName = document.getElementById('refNameInput').value;
+      const code = document.getElementById('refCodeInput').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const creatorName = document.getElementById('refNameInput').value.trim();
       const commissionRate = parseFloat(document.getElementById('refRateInput').value) || 1.5;
-      const feedback = document.getElementById('refFeedback');
 
-      let refs = getStoredData('referrals', []);
-      refs.unshift({
-        id: 'ref_' + Date.now(),
+      if (!code || !creatorName) {
+        showToast('Please fill out all referral link fields.', 'error');
+        return;
+      }
+
+      const newRef = {
         code,
         creatorName,
         commissionRate,
         signups: 0,
-      });
-      setStoredData('referrals', refs);
-      feedback.className = 'text-xs p-2 rounded bg-emerald-950 border border-emerald-500 text-emerald-300';
-      feedback.textContent = `Referral link para sa code "${code}" ay nalikha na!`;
-      feedback.classList.remove('hidden');
+        createdAt: new Date().toISOString().split('T')[0]
+      };
 
+      // 1. Save directly to Firestore collection 'referrals'
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, setDoc } = window.bet88Firestore;
+          await setDoc(doc(db, 'referrals', code), newRef);
+        }
+      } catch (err) {
+        console.warn('Firestore referral save error:', err);
+      }
+
+      // 2. Post to backend API
+      try {
+        await fetch('/api/admin/referrals/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newRef)
+        });
+      } catch (err) {}
+
+      // 3. Save to localStorage
+      const localRefs = getStoredData('referrals', []);
+      localRefs.unshift(newRef);
+      setStoredData('referrals', localRefs);
+
+      showToast(`Referral link "${code}" successfully created and synced to all desktops!`, 'success');
       document.getElementById('refCodeInput').value = '';
       document.getElementById('refNameInput').value = '';
       loadReferrals();
     });
 
-    // 4. Meta Integration
-    async function loadMeta() {
-      let config = getStoredData('metaConfig', {
-        pixelId: '984120485918231',
-        accessToken: 'EAAGNO4...fb_conversions_api_key_valid',
-        testEventCode: 'TEST98421',
-        trackRegistration: true,
-        trackDeposit: true,
-        eventsLogged: [
-          {
-            eventName: 'PageView',
-            userPhone: 'visitor',
-            timestamp: 'Just now',
-            value: 0,
-            status: 'SENT'
+    // ==========================================
+    // 5. SECURITY & MASTER ADMIN LOGIN SETTINGS
+    // ==========================================
+    async function loadSecurityTab() {
+      let currentCreds = { phone: '09060489645', password: 'Dan051391' };
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, getDoc } = window.bet88Firestore;
+          const snap = await getDoc(doc(db, 'settings', 'admin_credentials'));
+          if (snap.exists()) {
+            currentCreds = snap.data();
           }
-        ]
-      });
-
-      document.getElementById('metaPixelId').value = config.pixelId || '';
-      document.getElementById('metaToken').value = config.accessToken || '';
-      document.getElementById('metaTestCode').value = config.testEventCode || '';
-      document.getElementById('chkRegistration').checked = config.trackRegistration;
-      document.getElementById('chkDeposit').checked = config.trackDeposit;
-
-      const eventsList = document.getElementById('metaEventsList');
-      eventsList.innerHTML = '';
-      (config.eventsLogged || []).forEach(evt => {
-        const item = document.createElement('div');
-        item.className = 'p-2.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono';
-        item.innerHTML = `
-          <div>
-            <span class="font-bold text-blue-400 block">${evt.eventName}</span>
-            <span class="text-[10px] text-slate-500">${evt.userPhone} · ${evt.timestamp}</span>
-          </div>
-          <div class="text-right">
-            <span class="font-bold text-white">${evt.value > 0 ? '₱' + evt.value.toLocaleString() : '-'}</span>
-            <span class="text-[10px] text-emerald-400 font-bold block">SIGNAL ${evt.status}</span>
-          </div>
-        `;
-        eventsList.appendChild(item);
-      });
+        }
+      } catch (err) {}
+      document.getElementById('newAdminPhone').value = currentCreds.phone || '09060489645';
     }
 
-    // 4. Game Win Rates Management (Super Ace Slot Active)
+    document.getElementById('adminSecurityForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newPhone = document.getElementById('newAdminPhone').value.trim();
+      const currentPass = document.getElementById('currentAdminPass').value.trim();
+      const newPass = document.getElementById('newAdminPass').value.trim();
+      const confirmPass = document.getElementById('confirmAdminPass').value.trim();
+      const feedback = document.getElementById('securityFeedback');
+
+      if (newPass !== confirmPass) {
+        feedback.className = 'text-xs p-3 rounded-xl bg-red-950 border border-red-500 text-red-300 block';
+        feedback.textContent = 'Hindi nagtutugma ang Bagong Password at Confirm Password.';
+        return;
+      }
+      if (newPass.length < 6) {
+        feedback.className = 'text-xs p-3 rounded-xl bg-red-950 border border-red-500 text-red-300 block';
+        feedback.textContent = 'Dapat hindi bababa sa 6 characters ang bagong password.';
+        return;
+      }
+
+      // 1. Save to Firestore
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, setDoc } = window.bet88Firestore;
+          await setDoc(doc(db, 'settings', 'admin_credentials'), {
+            phone: newPhone,
+            password: newPass,
+            updatedAt: new Date().toISOString()
+          });
+        }
+      } catch (err) {}
+
+      // 2. Notify backend Express server
+      try {
+        await fetch('/api/admin/change-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: newPhone, password: newPass })
+        });
+      } catch (err) {}
+
+      // 3. Save to localStorage
+      setStoredData('admin_credentials', { phone: newPhone, password: newPass });
+
+      feedback.className = 'text-xs p-3 rounded-xl bg-emerald-950 border border-emerald-500 text-emerald-300 block';
+      feedback.textContent = 'Matagumpay na nabago ang Admin Login Details! Gamitin ito sa susunod na login sa anumang computer.';
+      showToast('Admin Login Credentials successfully updated!', 'success');
+
+      document.getElementById('currentAdminPass').value = '';
+      document.getElementById('newAdminPass').value = '';
+      document.getElementById('confirmAdminPass').value = '';
+    });
+
+    // ==========================================
+    // 6. GAME WIN RATES (RTP CONTROLLER)
+    // ==========================================
     const DEFAULT_WIN_RATES = {
       super_ace: {
         gameId: 'super_ace',
@@ -927,86 +1822,70 @@
         wildBonusRate: 8,
         freeSpinRate: 3,
         rigMode: 'BALANCED',
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
     };
 
     async function loadWinRates() {
-      let rates = { ...DEFAULT_WIN_RATES };
+      let winRates = { ...DEFAULT_WIN_RATES };
 
-      // 1. Try Firestore
+      // Try Backend API first
+      try {
+        const res = await fetch('/api/games/win-rates/super_ace?_t=' + Date.now());
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.config) {
+            winRates.super_ace = data.config;
+          }
+        }
+      } catch (err) {}
+
+      // Try Firestore
       try {
         if (window.bet88Firestore) {
           const { db, doc, getDoc } = window.bet88Firestore;
           const snap = await getDoc(doc(db, 'settings', 'game_win_rates'));
-          if (snap.exists()) {
-            const data = snap.data();
-            if (data.super_ace) {
-              rates.super_ace = { ...rates.super_ace, ...data.super_ace };
-            }
+          if (snap.exists() && snap.data().super_ace) {
+            winRates.super_ace = { ...winRates.super_ace, ...snap.data().super_ace };
           }
         }
-      } catch (err) {
-        console.warn('Firestore win rate read failed:', err);
-      }
+      } catch (err) {}
 
-      // 2. Try Backend API if served via express
-      try {
-        const res = await fetch('/api/admin/win-rates');
-        const data = await res.json();
-        if (data.success && data.winRates && data.winRates.super_ace) {
-          rates.super_ace = { ...rates.super_ace, ...data.winRates.super_ace };
-        }
-      } catch (err) {
-        // Fallback LocalStorage on static hosting (Vercel)
-        const stored = getStoredData('game_win_rates', rates);
-        if (stored && stored.super_ace) {
-          rates.super_ace = { ...rates.super_ace, ...stored.super_ace };
-        }
-      }
+      renderWinRateCard(winRates.super_ace);
+    }
 
-      // Ensure only currently active games (Super Ace) are displayed
-      const activeGamesList = [rates.super_ace].filter(Boolean);
-
+    function renderWinRateCard(g) {
       const container = document.getElementById('winRatesList');
-      if (!container) return;
-      container.innerHTML = '';
-
-      activeGamesList.forEach(g => {
-        const card = document.createElement('div');
-        card.className = 'p-5 bg-slate-900 border border-slate-800 hover:border-amber-500/40 rounded-2xl space-y-4 shadow-xl transition-all';
-        card.innerHTML = `
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+      container.innerHTML = `
+        <div class="p-5 bg-slate-900 border border-slate-800 rounded-2xl space-y-4 hover:border-amber-500/40 transition-colors shadow-xl">
+          <div class="flex items-center justify-between">
             <div>
-              <span class="text-[10px] font-bold tracking-widest text-amber-400 uppercase bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">${g.provider} · ${g.category.toUpperCase()}</span>
-              <h3 class="text-sm font-bold text-white mt-1">${g.gameName}</h3>
+              <h3 class="text-base font-bold text-white">${g.gameName}</h3>
+              <p class="text-xs text-slate-400 font-mono">${g.provider} · ${g.category.toUpperCase()}</p>
             </div>
-            <div class="text-right">
-              <span class="text-xs text-slate-500 block font-mono">ID: ${g.gameId}</span>
-              <span class="text-xs font-bold ${g.winRate >= 98 ? 'text-emerald-400' : g.winRate <= 90 ? 'text-red-400' : 'text-amber-400'} font-mono">
-                RTP: ${g.winRate}%
-              </span>
-            </div>
+            <span class="px-2.5 py-1 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-lg text-xs font-mono font-bold">
+              ID: ${g.gameId}
+            </span>
           </div>
 
-          <form onsubmit="submitWinRateUpdate(event, '${g.gameId}')" class="space-y-3 text-xs">
+          <form onsubmit="submitWinRateUpdate(event, '${g.gameId}')" class="space-y-4">
             <div>
-              <div class="flex justify-between text-slate-400 mb-1">
-                <label class="font-semibold">Win Rate (RTP %)</label>
-                <span id="rateLabel_${g.gameId}" class="font-mono text-amber-300 font-bold">${g.winRate}%</span>
+              <div class="flex justify-between items-center text-xs mb-1">
+                <span class="text-slate-300 font-bold">Target Win Rate (RTP):</span>
+                <span id="winRateVal_${g.gameId}" class="font-mono font-bold text-amber-400 text-sm">${g.winRate}%</span>
               </div>
               <input
                 type="range"
-                min="50"
+                min="30"
                 max="100"
                 step="0.5"
                 value="${g.winRate}"
-                id="winRate_${g.gameId}"
-                oninput="document.getElementById('rateLabel_${g.gameId}').textContent = this.value + '%'"
-                class="w-full accent-amber-400 cursor-pointer"
+                id="slider_${g.gameId}"
+                oninput="document.getElementById('winRateVal_${g.gameId}').textContent = this.value + '%'"
+                class="w-full accent-amber-400 cursor-pointer h-2 bg-slate-950 rounded-lg"
               />
-              <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-0.5">
-                <span>50% (Hard)</span>
+              <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                <span>30% (Strict House)</span>
                 <span>97.6% (Standard)</span>
                 <span>100% (Sure Win)</span>
               </div>
@@ -1031,7 +1910,7 @@
                   type="number"
                   min="0"
                   max="50"
-                  value="${g.wildBonusRate || 0}"
+                  value="${g.wildBonusRate || 8}"
                   id="wildRate_${g.gameId}"
                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400"
                 />
@@ -1045,7 +1924,7 @@
                   type="number"
                   min="0"
                   max="50"
-                  value="${g.freeSpinRate || 0}"
+                  value="${g.freeSpinRate || 3}"
                   id="freeSpinRate_${g.gameId}"
                   class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-amber-400"
                 />
@@ -1056,7 +1935,7 @@
                   <option value="BALANCED" ${g.rigMode === 'BALANCED' ? 'selected' : ''}>Balanced (Normal)</option>
                   <option value="HIGH_PAYOUT" ${g.rigMode === 'HIGH_PAYOUT' ? 'selected' : ''}>High Payout (Easy)</option>
                   <option value="LOW_PAYOUT" ${g.rigMode === 'LOW_PAYOUT' ? 'selected' : ''}>Low Payout (House Favored)</option>
-                  <option value="JACKPOT_HUNT" ${g.rigMode === 'JACKPOT_HUNT' ? 'selected' : ''}>Jackpot Hunt (Crazy Big Wins)</option>
+                  <option value="JACKPOT_HUNT" ${g.rigMode === 'JACKPOT_HUNT' ? 'selected' : ''}>Jackpot Hunt (Big Multipliers)</option>
                 </select>
               </div>
             </div>
@@ -1070,19 +1949,17 @@
               I-Save ang Bagong Win Rate
             </button>
           </form>
-        `;
-        container.appendChild(card);
-      });
+        </div>
+      `;
     }
 
     async function submitWinRateUpdate(e, gameId) {
       e.preventDefault();
-      const winRate = parseFloat(document.getElementById('winRate_' + gameId).value);
-      const payoutMultiplier = parseFloat(document.getElementById('multiplier_' + gameId).value);
-      const wildBonusRate = parseFloat(document.getElementById('wildRate_' + gameId).value);
-      const freeSpinRate = parseFloat(document.getElementById('freeSpinRate_' + gameId).value);
-      const rigMode = document.getElementById('rigMode_' + gameId).value;
-      const feedback = document.getElementById('feedback_' + gameId);
+      const winRate = parseFloat(document.getElementById(`slider_${gameId}`).value);
+      const payoutMultiplier = parseFloat(document.getElementById(`multiplier_${gameId}`).value);
+      const wildBonusRate = parseFloat(document.getElementById(`wildRate_${gameId}`).value);
+      const freeSpinRate = parseFloat(document.getElementById(`freeSpinRate_${gameId}`).value);
+      const rigMode = document.getElementById(`rigMode_${gameId}`).value;
 
       const updateData = {
         winRate,
@@ -1093,7 +1970,7 @@
         updatedAt: new Date().toISOString()
       };
 
-      // 1. Try Backend API
+      // 1. Post to backend Express API
       try {
         await fetch('/api/admin/win-rates/update', {
           method: 'POST',
@@ -1102,7 +1979,7 @@
         });
       } catch (err) {}
 
-      // 2. Sync to Firestore if available
+      // 2. Save to Firestore
       try {
         if (window.bet88Firestore) {
           const { db, doc, setDoc } = window.bet88Firestore;
@@ -1110,16 +1987,54 @@
         }
       } catch (err) {}
 
-      // 3. Sync to LocalStorage (works across tabs and on static hosting)
+      // 3. Save to localStorage
       const stored = getStoredData('game_win_rates', DEFAULT_WIN_RATES);
       stored[gameId] = { ...(stored[gameId] || {}), ...updateData };
       setStoredData('game_win_rates', stored);
 
-      feedback.className = 'p-2 rounded bg-emerald-950 border border-emerald-500 text-emerald-300 font-bold block text-[11px]';
-      feedback.textContent = `Matagumpay na na-set ang Win Rate ng ${gameId} sa ${winRate}%!`;
-      setTimeout(() => {
-        feedback.className = 'hidden';
-      }, 3500);
+      showToast(`Matagumpay na na-set ang RTP ng ${gameId} sa ${winRate}%!`, 'success');
+    }
+
+    // ==========================================
+    // 7. META CONVERSIONS API
+    // ==========================================
+    function loadMeta() {
+      const config = getStoredData('metaConfig', {
+        pixelId: '984120485918231',
+        accessToken: 'EAAGNO4...fb_conversions_api_key_valid',
+        testEventCode: 'TEST98421',
+        trackRegistration: true,
+        trackDeposit: true,
+        eventsLogged: [
+          { eventName: 'CompleteRegistration', userPhone: '09060489645', value: 0, timestamp: '10:45 AM', status: 'SENT' },
+          { eventName: 'Purchase', userPhone: '09060489645', value: 500, timestamp: '11:15 AM', status: 'SENT' }
+        ]
+      });
+
+      document.getElementById('metaPixelId').value = config.pixelId || '';
+      document.getElementById('metaToken').value = config.accessToken || '';
+      document.getElementById('metaTestCode').value = config.testEventCode || '';
+      document.getElementById('chkRegistration').checked = config.trackRegistration !== false;
+      document.getElementById('chkDeposit').checked = config.trackDeposit !== false;
+
+      const list = document.getElementById('metaEventsList');
+      list.innerHTML = '';
+      (config.eventsLogged || []).forEach(evt => {
+        const item = document.createElement('div');
+        item.className = 'p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl flex items-center justify-between text-xs font-mono';
+        item.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full ${evt.status === 'SENT' ? 'bg-emerald-400' : 'bg-blue-400'}"></span>
+            <span class="text-white font-bold">${evt.eventName}</span>
+            <span class="text-slate-400">(${evt.userPhone})</span>
+          </div>
+          <div class="flex items-center gap-3">
+            ${evt.value > 0 ? `<span class="text-emerald-400 font-bold">₱${evt.value}</span>` : ''}
+            <span class="text-slate-500 text-[10px]">${evt.timestamp}</span>
+          </div>
+        `;
+        list.appendChild(item);
+      });
     }
 
     document.getElementById('metaConfigForm').addEventListener('submit', async (e) => {
@@ -1129,14 +2044,10 @@
       const testEventCode = document.getElementById('metaTestCode').value;
       const trackRegistration = document.getElementById('chkRegistration').checked;
       const trackDeposit = document.getElementById('chkDeposit').checked;
-      const feedback = document.getElementById('metaFeedback');
 
       const config = { pixelId, accessToken, testEventCode, trackRegistration, trackDeposit };
       setStoredData('metaConfig', config);
-
-      feedback.className = 'text-xs p-2 rounded bg-blue-950 border border-blue-500 text-blue-300';
-      feedback.textContent = 'Meta Pixel & Conversions API settings successfully saved!';
-      feedback.classList.remove('hidden');
+      showToast('Meta Pixel & Conversions API settings successfully saved!', 'success');
     });
 
     async function sendMetaTestEvent() {
@@ -1151,7 +2062,7 @@
         status: 'SENT'
       });
       setStoredData('metaConfig', config);
-      alert('Meta Test Signal Dispatched to Facebook Events Manager!');
+      showToast('Meta Test Signal Dispatched to Facebook Events Manager!', 'info');
       loadMeta();
     }
   </script>

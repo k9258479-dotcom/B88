@@ -9,6 +9,7 @@ interface AuthModalProps {
   onClose: () => void;
   onLoginSuccess: (user: UserProfile) => void;
   initialMode?: 'login' | 'register';
+  noticeMessage?: string;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -16,6 +17,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onLoginSuccess,
   initialMode = 'login',
+  noticeMessage,
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [phone, setPhone] = useState('');
@@ -24,6 +26,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [promoCode, setPromoCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   if (!isOpen) return null;
 
@@ -124,6 +130,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {noticeMessage && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs rounded-xl flex items-center gap-2">
+              <span className="text-base">🎰</span>
+              <span className="font-semibold">{noticeMessage}</span>
+            </div>
+          )}
+
           {errorMsg && (
             <div className="p-3 bg-red-950/60 border border-red-500 text-red-300 text-xs rounded-xl">
               {errorMsg}

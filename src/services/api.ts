@@ -267,11 +267,11 @@ export const api = {
   // Deposit Request (GCash / Maya)
   async deposit(amount: number, method: string, mobileNumber: string): Promise<{ success: boolean; message: string; newBalance?: number; transaction?: Transaction }> {
     const user = getLocalItem<UserProfile | null>('currentUser', null);
-    const userPhone = user ? user.phone : mobileNumber;
+    const userPhone = user && user.isLoggedIn ? user.phone : mobileNumber;
     const refNo = `GC-${Math.floor(10000000 + Math.random() * 90000000)}`;
 
     const newTx: Transaction = {
-      id: `tx_${Date.now()}`,
+      id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       userId: userPhone,
       userPhone,
       type: 'DEPOSIT',
@@ -280,14 +280,27 @@ export const api = {
       status: 'PENDING',
       method,
       referenceNo: refNo,
-      timestamp: 'Today, Just now',
+      timestamp: new Date().toLocaleTimeString(),
       createdAt: new Date().toISOString(),
     };
 
+    // 1. Save directly into Firestore collection 'transactions' with exact matching ID
     try {
-      await addDoc(collection(db, 'transactions'), newTx);
+      await setDoc(doc(db, 'transactions', newTx.id), newTx);
+    } catch (e) {
+      console.warn('Firestore deposit write error:', e);
+    }
+
+    // 2. Also POST to backend Express API so server.ts has it in memory
+    try {
+      await fetch('/api/wallet/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, method, mobileNumber: userPhone, referenceNo: refNo, transactionId: newTx.id }),
+      });
     } catch {}
 
+    // 3. Save to localStorage
     const txs = getLocalItem<Transaction[]>('transactions', []);
     txs.unshift(newTx);
     setLocalItem('transactions', txs);
@@ -298,6 +311,65 @@ export const api = {
       transaction: newTx,
       newBalance: user ? user.balance : 0,
     };
+  },
+
+  // Record Player Game Spin (Turnover, Win, Loss)
+  async recordPlayerGameSpin(spinData: {
+    bet: number;
+    win: number;
+    isFreeGame?: boolean;
+    gameId?: string;
+  }): Promise<void> {
+    const user = getLocalItem<UserProfile | null>('currentUser', null);
+    if (!user || !user.isLoggedIn || !user.phone) return;
+
+    const phone = user.phone;
+    const betAmount = spinData.isFreeGame ? 0 : spinData.bet;
+    const winAmount = spinData.win;
+    const lossAmount = Math.max(0, betAmount - winAmount);
+
+    // 1. Update Firestore user document
+    try {
+      const userRef = doc(db, 'users', phone);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        const d = snap.data();
+        const currentTurnover = (d.turnover || 0) + betAmount;
+        const currentTotalWon = (d.totalWon || 0) + winAmount;
+        const currentTotalLost = (d.totalLost || 0) + lossAmount;
+        const currentTotalSpins = (d.totalSpins || 0) + 1;
+        await updateDoc(userRef, {
+          turnover: Math.round(currentTurnover * 100) / 100,
+          totalWon: Math.round(currentTotalWon * 100) / 100,
+          totalLost: Math.round(currentTotalLost * 100) / 100,
+          totalSpins: currentTotalSpins,
+          lastActive: new Date().toISOString(),
+        });
+      }
+    } catch (e) {
+      console.warn('Error recording spin to Firestore:', e);
+    }
+
+    // 2. Update localStorage
+    try {
+      const localUsers = getLocalItem<Record<string, any>>('registered_accounts', {});
+      if (localUsers[phone]) {
+        localUsers[phone].turnover = Math.round(((localUsers[phone].turnover || 0) + betAmount) * 100) / 100;
+        localUsers[phone].totalWon = Math.round(((localUsers[phone].totalWon || 0) + winAmount) * 100) / 100;
+        localUsers[phone].totalLost = Math.round(((localUsers[phone].totalLost || 0) + lossAmount) * 100) / 100;
+        localUsers[phone].totalSpins = (localUsers[phone].totalSpins || 0) + 1;
+        setLocalItem('registered_accounts', localUsers);
+      }
+    } catch {}
+
+    // 3. Notify backend API
+    try {
+      await fetch('/api/games/record-spin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, bet: betAmount, win: winAmount }),
+      });
+    } catch {}
   },
 
   // Withdraw Request
