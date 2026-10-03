@@ -27,7 +27,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose, current
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-zinc-900 border border-yellow-500/30 hover:border-yellow-400 text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-lg bg-zinc-900 border border-yellow-500/30 hover:border-yellow-400 text-zinc-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -38,13 +38,20 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose, current
           {/* Objective */}
           <div className="bg-black/40 border border-yellow-500/20 rounded-xl p-3.5 space-y-1.5">
             <h3 className="font-bold text-amber-300 flex items-center gap-1.5 text-sm uppercase">
-              <Trophy className="w-4 h-4 text-amber-400" /> Paano Maglaro (How to Play)
+              <Trophy className="w-4 h-4 text-amber-400" /> How to Play
             </h3>
-            <ol className="list-decimal list-inside space-y-1 text-zinc-300 pl-1">
-              <li><strong className="text-amber-200">Itakda ang Bet / Box:</strong> Gamitin ang +/- sa itaas upang piliin ang halaga ng iyong taya kada isang box.</li>
-              <li><strong className="text-amber-200">Pumili ng Maleta:</strong> I-click ang kahit anong box (#1 hanggang #25) sa grid. Maaari kang pumili ng isa o higit pa.</li>
-              <li><strong className="text-amber-200">Open Box:</strong> Pindutin ang <strong>Open Box</strong> upang buksan ang mga napili. Agad mong mapapanalunan ang <code>Bet × Multiplier</code> (hal. ₱1,000 × 0.8x = ₱800, o ₱1,000 × 10x = ₱10,000).</li>
-              <li><strong className="text-amber-200">Claim:</strong> Pindutin ang <strong>Claim</strong> anumang oras upang kolektahin ang iyong kabuuang napanalunan at magsimula ng bagong board.</li>
+            <ol className="list-decimal list-inside space-y-1.5 text-zinc-300 pl-1">
+              <li>
+                <strong className="text-amber-200">Select Game Mode & Bet:</strong>
+                <div className="mt-1 pl-2 text-[11px] text-zinc-300 space-y-0.5">
+                  <div>• <span className="text-amber-300 font-bold">2 Cases:</span> Fixed Bet is <strong>₱100</strong></div>
+                  <div>• <span className="text-amber-300 font-bold">3 Cases:</span> Fixed Bet is <strong>₱200</strong></div>
+                  <div>• <span className="text-amber-300 font-bold">6 Cases:</span> Fixed Bet is <strong>₱500</strong></div>
+                </div>
+              </li>
+              <li><strong className="text-amber-200">Pick Briefcases:</strong> Click any unopened case (#1 to #35) on the grid up to your mode limit. You can select one or multiple cases at a time.</li>
+              <li><strong className="text-amber-200">Open Box:</strong> Press <strong>Open Box</strong> to reveal your chosen cases and immediately collect <code>Bet × Multiplier</code> into your balance.</li>
+              <li><strong className="text-amber-200">Auto-Restart or Claim:</strong> Once all cases in your mode are opened, the round automatically completes and restarts, or click <strong>Claim</strong> anytime to secure your current winnings.</li>
             </ol>
           </div>
 
@@ -52,7 +59,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose, current
           <div className="bg-black/40 border border-yellow-500/20 rounded-xl p-3.5 space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-amber-300 flex items-center gap-1.5 text-sm uppercase">
-                <Sparkles className="w-4 h-4 text-amber-400" /> Paytable (25 Multipliers)
+                <Sparkles className="w-4 h-4 text-amber-400" /> Paytable (35 Multipliers)
               </h3>
               <span className="text-[10px] text-amber-400/90 font-mono">Current Bet: ₱{currentBet.toLocaleString()}</span>
             </div>
@@ -85,8 +92,7 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose, current
               <ShieldCheck className="w-4 h-4 text-emerald-400" /> Provably Fair & RTP
             </h3>
             <p className="text-zinc-400 text-[11px]">
-              Lahat ng 25 maleta ay may nakatagong halaga na itinalaga gamit ang cryptographic SHA-256 hash bago ka magsimula.
-              Ang Return to Player (RTP) ay <strong className="text-amber-300">97.45%</strong>. Ang Banker formula ay dynamic at patas.
+              All 35 briefcases are pre-seeded and cryptographically locked using <strong className="text-emerald-300">SHA-256 hashes</strong> before the first case is selected. The theoretical Return to Player (RTP) is <strong className="text-amber-300">97.45%</strong>.
             </p>
           </div>
         </div>
@@ -95,9 +101,9 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose, current
         <div className="mt-5 text-center">
           <button
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black uppercase tracking-wider text-xs shadow-lg hover:brightness-110 active:scale-98 transition-all"
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black uppercase tracking-wider text-xs shadow-lg hover:brightness-110 active:scale-98 transition-all cursor-pointer"
           >
-            Naiintindihan Ko (Got It)
+            Got It
           </button>
         </div>
       </div>

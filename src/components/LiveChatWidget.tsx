@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, Bot, ShieldCheck } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 interface ChatMessage {
   id: string;
   sender: 'cs' | 'user';
+  senderName?: string;
   text: string;
   time: string;
 }
@@ -22,47 +23,140 @@ export const LiveChatWidget: React.FC = () => {
     {
       id: '1',
       sender: 'cs',
+      senderName: 'Bet88 Support',
       text: 'Magandang araw! Welcome po sa Bet88 24/7 Live Customer Support. Paano po namin kayo matutulungan ngayon?',
       time: 'Just now',
     },
   ]);
   const [inputText, setInputText] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const handleSendMessage = (textToSend?: string) => {
+  // Get or initialize persistent session ID (e.g. player mobile or session cookie)
+  const [sessionId] = useState(() => {
+    try {
+      const storedUser = localStorage.getItem('bet88_currentUser');
+      if (storedUser) {
+        const u = JSON.parse(storedUser);
+        if (u && u.phone) return u.phone;
+      }
+      let sid = sessionStorage.getItem('bet88_chat_sid');
+      if (!sid) {
+        sid = `session_${Math.floor(100000 + Math.random() * 900000)}`;
+        sessionStorage.setItem('bet88_chat_sid', sid);
+      }
+      return sid;
+    } catch {
+      return 'guest_player';
+    }
+  });
+
+  // Poll backend for real-time CSR replies while chat window is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchMessages = async () => {
+      try {
+        const res = await fetch(`/api/chat/messages?sessionId=${encodeURIComponent(sessionId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.messages) && data.messages.length > 0) {
+            setMessages(prev => {
+              const map = new Map<string, ChatMessage>();
+              prev.forEach(m => map.set(m.id, m));
+              data.messages.forEach((m: any) => {
+                map.set(m.id, {
+                  id: m.id,
+                  sender: m.sender,
+                  senderName: m.senderName,
+                  text: m.text,
+                  time: m.time || 'Just now',
+                });
+              });
+              return Array.from(map.values());
+            });
+          }
+        }
+      } catch (err) {}
+    };
+
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
+  }, [isOpen, sessionId]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSendMessage = async (textToSend?: string) => {
     const text = textToSend || inputText;
     if (!text.trim()) return;
 
     sounds.playClick();
+    const tempId = `temp_${Date.now()}`;
     const userMsg: ChatMessage = {
-      id: Date.now().toString(),
+      id: tempId,
       sender: 'user',
+      senderName: 'You',
       text,
-      time: 'Just now',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
     setMessages(prev => [...prev, userMsg]);
     if (!textToSend) setInputText('');
 
-    // Automated CS response
-    setTimeout(() => {
-      let reply = 'Salamat sa pag-inquire! Ang aming payment gateway ay automated at instant crediting sa GCash at Maya.';
-      const lower = text.toLowerCase();
-      if (lower.includes('deposit') || lower.includes('gcash')) {
-        reply = 'Pindutin lamang ang "+ PHP" button sa itaas o pumunta sa Cashier. Piliin ang GCash, i-type ang amount (min. ₱50), at i-scan ang QR code. Auto-credit po agad ito!';
-      } else if (lower.includes('cashout') || lower.includes('withdraw') || lower.includes('minimum')) {
-        reply = 'Ang minimum cashout ay ₱100 lamang at walang fee (0% cashout fee). Payouts are dispatched within 3-5 minutes direkta sa inyong GCash/Maya number!';
-      } else if (lower.includes('bonus') || lower.includes('welcome')) {
-        reply = 'Lahat ng bagong rehistradong manlalaro ay awtomatikong may libreng ₱100 Welcome Free Credit at 100% First Deposit Bonus!';
-      }
+    // 1. Post to backend Live Support API
+    try {
+      let playerName = 'Player';
+      try {
+        const storedUser = localStorage.getItem('bet88_currentUser');
+        if (storedUser) {
+          const u = JSON.parse(storedUser);
+          if (u.username) playerName = u.username;
+        }
+      } catch {}
 
-      const csReply: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        sender: 'cs',
-        text: reply,
-        time: 'Just now',
-      };
-      setMessages(prev => [...prev, csReply]);
-    }, 600);
+      await fetch('/api/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          senderName: playerName,
+          phone: sessionId.startsWith('09') ? sessionId : '',
+          text,
+        }),
+      });
+    } catch (e) {}
+
+    // 2. Instant helpful quick response for known FAQs if CSR hasn't replied yet
+    const lower = text.toLowerCase();
+    if (lower.includes('deposit') || lower.includes('gcash') || lower.includes('cash in') || lower.includes('cashin')) {
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `auto_${Date.now()}`,
+            sender: 'cs',
+            senderName: 'Bet88 Bot Support',
+            text: 'Pindutin lamang ang "+ PHP" button sa itaas o pumunta sa Cashier. Piliin ang GCash, PayMaya, o PayMongo Gateway, i-type ang halaga (min. ₱50), at kumpirmahin. Auto-credit po agad ito!',
+            time: 'Just now',
+          },
+        ]);
+      }, 700);
+    } else if (lower.includes('cashout') || lower.includes('withdraw') || lower.includes('minimum')) {
+      setTimeout(() => {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: `auto_${Date.now()}`,
+            sender: 'cs',
+            senderName: 'Bet88 Bot Support',
+            text: 'Ang minimum cashout natin ay ₱200 lamang at 0% withdrawal fee. Payouts are dispatched within 3-5 minutes direkta sa inyong GCash/Maya number!',
+            time: 'Just now',
+          },
+        ]);
+      }, 700);
+    }
   };
 
   return (

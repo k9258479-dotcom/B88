@@ -9,6 +9,7 @@ interface GameOverModalProps {
   winType: 'DEAL' | 'ALL_OPENED';
   payout: number;
   bet: number;
+  maxBoxesPerGame?: number;
 }
 
 export const GameOverModal: React.FC<GameOverModalProps> = ({
@@ -17,6 +18,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   winType,
   payout,
   bet,
+  maxBoxesPerGame = 6,
 }) => {
   useEffect(() => {
     if (isOpen) {
@@ -45,16 +47,16 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
         {/* Title */}
         <h2 className="mt-3 text-xl font-black text-gold-gradient uppercase tracking-wider">
-          {winType === 'DEAL' ? 'PANALO NA-CLAIM!' : 'ROUND COMPLETE (6/6)!'}
+          {winType === 'DEAL' ? 'WINNINGS CLAIMED!' : `ROUND COMPLETE (${maxBoxesPerGame}/${maxBoxesPerGame})!`}
         </h2>
         <p className="text-xs text-amber-200 font-semibold uppercase">
-          {winType === 'DEAL' ? 'Nakuha mo ang iyong kabuuang panalo' : 'Nabuksan mo ang 6 na maleta sa round na ito'}
+          {winType === 'DEAL' ? 'You collected your total winnings' : `You opened all ${maxBoxesPerGame} cases in this round`}
         </p>
 
         {/* Big Payout Box */}
         <div className="my-4 p-3 bg-black/60 border border-yellow-500/40 rounded-2xl shadow-inner">
           <span className="text-[10px] text-zinc-400 uppercase tracking-widest font-bold block">
-            Kabuuang Napanalunan (Total Payout)
+            Total Payout Won
           </span>
           <span className="text-3xl font-black text-emerald-400 drop-shadow-[0_0_12px_rgba(52,211,153,0.6)] font-mono tabular-nums">
             ₱{Math.round(payout).toLocaleString()}
@@ -77,7 +79,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           }}
           className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black font-black uppercase text-sm shadow-[0_4px_15px_rgba(245,158,11,0.6)] hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
         >
-          <RefreshCw className="w-4 h-4" /> Maglaro Muli (Play Again)
+          <RefreshCw className="w-4 h-4" /> Play Again
         </button>
       </div>
     </div>

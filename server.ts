@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -995,51 +996,95 @@ app.get('/api/vip', (req, res) => {
 // ----------------------------------------------------
 // SECURED BACKEND ADMIN MANAGEMENT API & PORTAL
 // ----------------------------------------------------
+const CREDENTIALS_FILES = [
+  path.join(__dirname, 'admin_credentials.json'),
+  path.join(process.cwd(), 'admin_credentials.json'),
+  '/tmp/admin_credentials.json'
+];
+
 let ADMIN_CREDENTIALS = {
   phone: '09060489645',
   password: 'Dan051391',
 };
+
+// Load saved credentials from any available persistent path
+for (const p of CREDENTIALS_FILES) {
+  try {
+    if (fs.existsSync(p)) {
+      const saved = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      if (saved && saved.phone && saved.password) {
+        ADMIN_CREDENTIALS = saved;
+        break;
+      }
+    }
+  } catch (e) {}
+}
 
 export interface StaffAccount {
   id: string;
   name: string;
   username: string;
   password: string;
-  role: 'SUPER_ADMIN' | 'FINANCE_CASHIER' | 'MARKETING_AFFILIATE' | 'GAME_OPERATIONS';
+  role: 'SUPER_ADMIN' | 'FINANCE_CASHIER' | 'MARKETING_AFFILIATE' | 'GAME_OPERATIONS' | 'CSR_SUPPORT';
+  allowedTabs?: string[];
   status: 'ACTIVE' | 'SUSPENDED';
   createdAt: string;
 }
 
+const DEFAULT_ROLE_TABS: Record<string, string[]> = {
+  SUPER_ADMIN: ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabCSR', 'tabPayMongo', 'tabSecurity', 'tabMeta'],
+  FINANCE_CASHIER: ['tabCashier', 'tabPayMongo'],
+  MARKETING_AFFILIATE: ['tabReferrals', 'tabMeta'],
+  GAME_OPERATIONS: ['tabUsers', 'tabWinRates'],
+  CSR_SUPPORT: ['tabCSR'],
+};
+
+const STAFF_FILE = path.join(__dirname, 'staff_accounts.json');
 let staffAccounts: StaffAccount[] = [
-  { id: 'stf_1', name: 'Maria - Head Cashier', username: 'cashier01', password: 'password123', role: 'FINANCE_CASHIER', status: 'ACTIVE', createdAt: '2026-09-30' },
-  { id: 'stf_2', name: 'Carlos - Marketing Agent', username: 'marketing01', password: 'password123', role: 'MARKETING_AFFILIATE', status: 'ACTIVE', createdAt: '2026-09-30' }
+  { id: 'stf_1', name: 'Maria - Head Cashier', username: 'cashier01', password: 'password123', role: 'FINANCE_CASHIER', allowedTabs: ['tabCashier', 'tabPayMongo'], status: 'ACTIVE', createdAt: '2026-09-30' },
+  { id: 'stf_2', name: 'Carlos - Marketing Agent', username: 'marketing01', password: 'password123', role: 'MARKETING_AFFILIATE', allowedTabs: ['tabReferrals', 'tabMeta'], status: 'ACTIVE', createdAt: '2026-09-30' },
+  { id: 'stf_3', name: 'Jen - CSR Agent', username: 'csr01', password: 'password123', role: 'CSR_SUPPORT', allowedTabs: ['tabCSR'], status: 'ACTIVE', createdAt: '2026-10-01' }
 ];
+
+try {
+  if (fs.existsSync(STAFF_FILE)) {
+    staffAccounts = JSON.parse(fs.readFileSync(STAFF_FILE, 'utf-8'));
+  }
+} catch (e) {}
 
 // 1. Admin & Staff Authentication
 app.post('/api/admin/login', (req, res) => {
   const { phone, password } = req.body;
+  const inputPhone = (phone || '').trim();
+  const inputPass = (password || '').trim();
 
   // Master Admin login
-  if (phone === ADMIN_CREDENTIALS.phone && password === ADMIN_CREDENTIALS.password) {
+  if (inputPhone === ADMIN_CREDENTIALS.phone && inputPass === ADMIN_CREDENTIALS.password) {
     return res.json({
       success: true,
       role: 'SUPER_ADMIN',
       name: 'Master Admin',
+      allowedTabs: DEFAULT_ROLE_TABS.SUPER_ADMIN,
       token: `bet88_adm_token_${Date.now()}`,
       message: 'Master Admin authorization granted.',
     });
   }
 
   // Staff Sub-Account login
-  const matchedStaff = staffAccounts.find(s => s.username.toLowerCase() === (phone || '').trim().toLowerCase() && s.password === password);
+  const matchedStaff = staffAccounts.find(s => s.username.toLowerCase() === inputPhone.toLowerCase() && s.password === inputPass);
   if (matchedStaff) {
     if (matchedStaff.status === 'SUSPENDED') {
       return res.status(403).json({ success: false, message: 'Ang account na ito ay kasalukuyang nakasuspinde.' });
     }
+    const staffTabs = matchedStaff.allowedTabs && matchedStaff.allowedTabs.length > 0
+      ? matchedStaff.allowedTabs
+      : (DEFAULT_ROLE_TABS[matchedStaff.role] || ['tabCashier']);
+
     return res.json({
       success: true,
       role: matchedStaff.role,
       name: matchedStaff.name,
+      allowedTabs: staffTabs,
       token: `bet88_staff_token_${Date.now()}`,
       message: `Staff login successful as ${matchedStaff.name} (${matchedStaff.role})`,
     });
@@ -1048,7 +1093,14 @@ app.post('/api/admin/login', (req, res) => {
   return res.status(401).json({ success: false, message: 'Maling mobile / username o password.' });
 });
 
-// Change Admin Login Credentials
+// Change Admin Login Credentials - Permanently saved on disk!
+app.get('/api/admin/credentials-check', (req, res) => {
+  res.json({
+    success: true,
+    phone: ADMIN_CREDENTIALS.phone,
+  });
+});
+
 app.post('/api/admin/change-credentials', (req, res) => {
   const { phone, password } = req.body;
   if (!phone || !password || password.length < 6) {
@@ -1060,9 +1112,15 @@ app.post('/api/admin/change-credentials', (req, res) => {
     password: password.trim(),
   };
 
+  CREDENTIALS_FILES.forEach(p => {
+    try {
+      fs.writeFileSync(p, JSON.stringify(ADMIN_CREDENTIALS, null, 2), 'utf-8');
+    } catch (e) {}
+  });
+
   res.json({
     success: true,
-    message: 'Master Admin credentials successfully changed!',
+    message: 'Master Admin credentials successfully changed and permanently saved!',
     credentials: { phone: ADMIN_CREDENTIALS.phone },
   });
 });
@@ -1076,19 +1134,21 @@ app.get('/api/admin/staff', (req, res) => {
 });
 
 app.post('/api/admin/staff/create', (req, res) => {
-  const { name, username, password, role } = req.body;
+  const { name, username, password, role, allowedTabs } = req.body;
   if (!name || !username || !password) {
     return res.status(400).json({ success: false, message: 'All staff fields required.' });
   }
 
   const cleanUser = username.trim().toLowerCase();
   const existing = staffAccounts.find(s => s.username === cleanUser);
+  const staffRole = role || 'FINANCE_CASHIER';
   const newStaff: StaffAccount = {
-    id: `stf_${Date.now()}`,
+    id: existing?.id || `stf_${Date.now()}`,
     name: name.trim(),
     username: cleanUser,
     password: password.trim(),
-    role: role || 'FINANCE_CASHIER',
+    role: staffRole,
+    allowedTabs: Array.isArray(allowedTabs) && allowedTabs.length > 0 ? allowedTabs : DEFAULT_ROLE_TABS[staffRole],
     status: 'ACTIVE',
     createdAt: new Date().toISOString().split('T')[0],
   };
@@ -1099,11 +1159,24 @@ app.post('/api/admin/staff/create', (req, res) => {
     staffAccounts.unshift(newStaff);
   }
 
+  try {
+    fs.writeFileSync(STAFF_FILE, JSON.stringify(staffAccounts, null, 2), 'utf-8');
+  } catch (e) {}
+
   res.json({
     success: true,
     message: `Staff account "${name}" created with role ${newStaff.role}!`,
     staff: newStaff,
   });
+});
+
+app.post('/api/admin/staff/delete', (req, res) => {
+  const { staffId } = req.body;
+  staffAccounts = staffAccounts.filter(s => s.id !== staffId);
+  try {
+    fs.writeFileSync(STAFF_FILE, JSON.stringify(staffAccounts, null, 2), 'utf-8');
+  } catch (e) {}
+  res.json({ success: true, message: 'Staff account removed' });
 });
 
 // Record Spin turnover, win, and loss from games
@@ -1296,6 +1369,353 @@ app.post('/api/admin/transactions/reject', (req, res) => {
     transaction: tx,
     userNewBalance: targetUser ? targetUser.balance : undefined,
   });
+});
+
+// Delete Transaction Endpoint (Approved, Rejected, or Completed)
+app.delete('/api/admin/transactions/:id', (req, res) => {
+  const txId = req.params.id;
+  const index = transactions.findIndex(t => t.id === txId);
+  if (index !== -1) {
+    transactions.splice(index, 1);
+  }
+  res.json({ success: true, message: `Transaction ${txId} successfully deleted.` });
+});
+
+app.post('/api/admin/transactions/delete', (req, res) => {
+  const { transactionId } = req.body;
+  const index = transactions.findIndex(t => t.id === transactionId);
+  if (index !== -1) {
+    transactions.splice(index, 1);
+  }
+  res.json({ success: true, message: `Transaction ${transactionId} successfully deleted.` });
+});
+
+// ----------------------------------------------------
+// PAYMONGO PAYMENT GATEWAY INTEGRATION
+// ----------------------------------------------------
+const PAYMONGO_FILE = path.join(__dirname, 'paymongo_config.json');
+interface PaymongoConfig {
+  isEnabled: boolean;
+  publicKey: string;
+  secretKey: string;
+  webhookSecret: string;
+}
+
+let paymongoConfig: PaymongoConfig = {
+  isEnabled: false,
+  publicKey: '',
+  secretKey: '',
+  webhookSecret: '',
+};
+
+try {
+  if (fs.existsSync(PAYMONGO_FILE)) {
+    paymongoConfig = { ...paymongoConfig, ...JSON.parse(fs.readFileSync(PAYMONGO_FILE, 'utf-8')) };
+  }
+} catch (e) {}
+
+app.get('/api/admin/paymongo/config', (req, res) => {
+  res.json({
+    success: true,
+    config: {
+      isEnabled: paymongoConfig.isEnabled,
+      publicKey: paymongoConfig.publicKey,
+      secretKey: paymongoConfig.secretKey ? `${paymongoConfig.secretKey.slice(0, 7)}...${paymongoConfig.secretKey.slice(-4)}` : '',
+      hasSecretKey: !!paymongoConfig.secretKey,
+      webhookSecret: paymongoConfig.webhookSecret ? '••••••••' : '',
+    },
+  });
+});
+
+app.post('/api/admin/paymongo/config', (req, res) => {
+  const { isEnabled, publicKey, secretKey, webhookSecret } = req.body;
+  paymongoConfig.isEnabled = !!isEnabled;
+  if (publicKey !== undefined) paymongoConfig.publicKey = publicKey.trim();
+  if (secretKey && !secretKey.includes('...')) paymongoConfig.secretKey = secretKey.trim();
+  if (webhookSecret && !webhookSecret.includes('•')) paymongoConfig.webhookSecret = webhookSecret.trim();
+
+  try {
+    fs.writeFileSync(PAYMONGO_FILE, JSON.stringify(paymongoConfig, null, 2), 'utf-8');
+  } catch (e) {}
+
+  res.json({
+    success: true,
+    message: 'PayMongo gateway configuration successfully saved and active!',
+    config: {
+      isEnabled: paymongoConfig.isEnabled,
+      publicKey: paymongoConfig.publicKey,
+      hasSecretKey: !!paymongoConfig.secretKey,
+    }
+  });
+});
+
+app.post('/api/admin/paymongo/test-connection', async (req, res) => {
+  if (!paymongoConfig.secretKey) {
+    return res.status(400).json({ success: false, message: 'No PayMongo Secret Key configured (e.g. sk_live_... o sk_test_...).' });
+  }
+
+  try {
+    const authHeader = 'Basic ' + Buffer.from(paymongoConfig.secretKey + ':').toString('base64');
+    const apiRes = await fetch('https://api.paymongo.com/v1/links?limit=1', {
+      headers: {
+        'Authorization': authHeader,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (apiRes.ok) {
+      return res.json({ success: true, message: 'PayMongo API connected successfully! API credentials are valid.' });
+    } else {
+      const errData: any = await apiRes.json().catch(() => ({}));
+      return res.status(400).json({ success: false, message: 'PayMongo error: ' + JSON.stringify(errData.errors || errData) });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: 'Connection test failed: ' + err.message });
+  }
+});
+
+// Create PayMongo Checkout Session for Player Deposit
+app.post('/api/paymongo/create-checkout', async (req, res) => {
+  const { amount, phone, description } = req.body;
+  const numAmount = parseFloat(amount);
+  if (!numAmount || numAmount < 50) {
+    return res.status(400).json({ success: false, message: 'Minimum deposit is ₱50.' });
+  }
+
+  const cleanPhone = phone || '09060489645';
+  const refNo = `PM-${Math.floor(10000000 + Math.random() * 90000000)}`;
+  const txId = `tx_pm_${Date.now()}`;
+
+  // If real PayMongo keys configured
+  if (paymongoConfig.isEnabled && paymongoConfig.secretKey) {
+    try {
+      const authHeader = 'Basic ' + Buffer.from(paymongoConfig.secretKey + ':').toString('base64');
+      const amountInCentavos = Math.round(numAmount * 100);
+
+      const pmRes = await fetch('https://api.paymongo.com/v1/checkout_sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            attributes: {
+              send_email_receipt: false,
+              show_description: true,
+              show_line_items: true,
+              payment_method_types: ['gcash', 'paymaya', 'card', 'dob'],
+              line_items: [
+                {
+                  currency: 'PHP',
+                  amount: amountInCentavos,
+                  description: description || 'Bet88 Casino Wallet Deposit',
+                  name: 'Bet88 Credits',
+                  quantity: 1,
+                },
+              ],
+              description: `Bet88 Wallet Credit for ${cleanPhone} (Ref: ${refNo})`,
+              reference_number: refNo,
+            },
+          },
+        }),
+      });
+
+      const pmData: any = await pmRes.json();
+      if (pmRes.ok && pmData.data && pmData.data.attributes && pmData.data.attributes.checkout_url) {
+        const checkoutUrl = pmData.data.attributes.checkout_url;
+
+        const newTx: Transaction = {
+          id: txId,
+          userId: cleanPhone,
+          userPhone: cleanPhone,
+          type: 'DEPOSIT',
+          amount: numAmount,
+          status: 'PENDING',
+          method: 'PayMongo Gateway',
+          referenceNo: refNo,
+          timestamp: new Date().toLocaleTimeString(),
+        };
+        transactions.unshift(newTx);
+
+        return res.json({
+          success: true,
+          checkoutUrl,
+          referenceNo: refNo,
+          transactionId: txId,
+        });
+      }
+    } catch (e: any) {
+      console.warn('PayMongo API call error:', e.message);
+    }
+  }
+
+  // Instant simulation checkout URL if keys pending setup
+  const simCheckoutUrl = `/paymongo-checkout.html?amount=${numAmount}&phone=${cleanPhone}&ref=${refNo}&tx=${txId}`;
+  const newTx: Transaction = {
+    id: txId,
+    userId: cleanPhone,
+    userPhone: cleanPhone,
+    type: 'DEPOSIT',
+    amount: numAmount,
+    status: 'PENDING',
+    method: 'PayMongo Gateway',
+    referenceNo: refNo,
+    timestamp: new Date().toLocaleTimeString(),
+  };
+  transactions.unshift(newTx);
+
+  res.json({
+    success: true,
+    checkoutUrl: simCheckoutUrl,
+    referenceNo: refNo,
+    transactionId: txId,
+  });
+});
+
+// PayMongo Webhook Handler
+app.post('/api/paymongo/webhook', (req, res) => {
+  const event = req.body?.data;
+  if (event) {
+    const eventType = event.attributes?.type;
+    if (eventType === 'checkout_session.payment.paid' || eventType === 'payment.paid') {
+      const payment = event.attributes.data?.attributes;
+      const refNo = payment?.reference_number || payment?.description;
+      const tx = transactions.find(t => t.referenceNo === refNo || (refNo && refNo.includes(t.referenceNo)));
+      if (tx) {
+        tx.status = 'APPROVED';
+        tx.approvedBy = 'PayMongo Auto-Webhook';
+        const user = users.get(tx.userId || tx.userPhone);
+        if (user) {
+          user.balance = round2(user.balance + tx.amount);
+          user.totalDeposited = round2(user.totalDeposited + tx.amount);
+        }
+      }
+    }
+  }
+  res.json({ received: true });
+});
+
+// ----------------------------------------------------
+// LIVE CUSTOMER SUPPORT CHAT (CSR BACKEND)
+// ----------------------------------------------------
+export interface LiveChatMessage {
+  id: string;
+  sessionId: string;
+  sender: 'user' | 'cs';
+  senderName: string;
+  phone?: string;
+  text: string;
+  time: string;
+  timestamp: number;
+}
+
+let liveChatMessages: LiveChatMessage[] = [
+  {
+    id: 'msg_welcome_sample',
+    sessionId: '09060489645',
+    sender: 'user',
+    senderName: 'Player_9645',
+    phone: '09060489645',
+    text: 'Hello po! Gaano katagal bago pumasok ang cash in gamit ang GCash?',
+    time: '10:14 AM',
+    timestamp: Date.now() - 600000,
+  },
+  {
+    id: 'msg_reply_sample',
+    sessionId: '09060489645',
+    sender: 'cs',
+    senderName: 'Jen - CSR Agent',
+    phone: '09060489645',
+    text: 'Magandang araw po! Instant po ang crediting sa GCash at PayMaya gateway, usually within 1-3 minutes ay nasa balance niyo na po.',
+    time: '10:15 AM',
+    timestamp: Date.now() - 540000,
+  }
+];
+
+// List chat sessions with latest message for CSR dashboard
+app.get('/api/chat/sessions', (req, res) => {
+  const sessionMap = new Map<string, {
+    sessionId: string;
+    phone: string;
+    playerName: string;
+    lastMessage: string;
+    lastTime: string;
+    timestamp: number;
+    unreadCount: number;
+  }>();
+
+  liveChatMessages.forEach(m => {
+    const existing = sessionMap.get(m.sessionId);
+    const isUser = m.sender === 'user';
+    if (!existing || m.timestamp > existing.timestamp) {
+      sessionMap.set(m.sessionId, {
+        sessionId: m.sessionId,
+        phone: m.phone || (m.sessionId.startsWith('09') ? m.sessionId : '09xxxxxxxxx'),
+        playerName: m.sender === 'user' ? m.senderName : (existing?.playerName || 'Player'),
+        lastMessage: m.text,
+        lastTime: m.time,
+        timestamp: m.timestamp,
+        unreadCount: (existing?.unreadCount || 0) + (isUser ? 1 : 0),
+      });
+    }
+  });
+
+  const sessions = Array.from(sessionMap.values()).sort((a, b) => b.timestamp - a.timestamp);
+  res.json({ success: true, sessions });
+});
+
+// Get messages for a session
+app.get('/api/chat/messages', (req, res) => {
+  const sessionId = (req.query.sessionId as string) || '';
+  if (!sessionId) {
+    return res.json({ success: true, messages: liveChatMessages });
+  }
+  const msgs = liveChatMessages.filter(m => m.sessionId === sessionId);
+  res.json({ success: true, messages: msgs });
+});
+
+// Player sends message
+app.post('/api/chat/send', (req, res) => {
+  const { sessionId, senderName, phone, text } = req.body;
+  if (!text || !text.trim()) return res.status(400).json({ success: false, message: 'Message text required' });
+
+  const sid = (sessionId || phone || 'guest_session').trim();
+  const newMsg: LiveChatMessage = {
+    id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    sessionId: sid,
+    sender: 'user',
+    senderName: senderName || 'Player',
+    phone: phone || '',
+    text: text.trim(),
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    timestamp: Date.now(),
+  };
+
+  liveChatMessages.push(newMsg);
+  res.json({ success: true, message: newMsg });
+});
+
+// CSR Agent replies from backend
+app.post('/api/chat/reply', (req, res) => {
+  const { sessionId, text, csrName } = req.body;
+  if (!sessionId || !text || !text.trim()) {
+    return res.status(400).json({ success: false, message: 'Session ID and text required' });
+  }
+
+  const replyMsg: LiveChatMessage = {
+    id: `msg_cs_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    sessionId: sessionId.trim(),
+    sender: 'cs',
+    senderName: csrName || 'Bet88 Support Agent',
+    text: text.trim(),
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    timestamp: Date.now(),
+  };
+
+  liveChatMessages.push(replyMsg);
+  res.json({ success: true, message: replyMsg });
 });
 
 // Manual Deposit / Credit Endpoint for Admin

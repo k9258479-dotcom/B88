@@ -16,15 +16,26 @@ import { Briefcase, GamePhase, ProvablyFairData } from './types/game';
 import { soundManager } from './utils/audio';
 import { generateSeed, sha256, shuffleWithSeeds } from './utils/provablyFair';
 import { api } from '../services/api';
+import { BOX_MODES } from './components/Header';
 
-// 25 Multipliers for 25 Briefcases: Exactly 6 HIGH, and the rest 0.1, 0.5, 10x
+// 35 Multipliers for 35 Briefcases:
+// 20 maleta na 0.3x
+// 10 maleta na 0.2x
+// 3 maleta na 10x
+// 1 maleta na 100x
+// 1 maleta na 1,000x
 const BASE_MULTIPLIERS = [
-  // 6 High Multipliers
-  50, 100, 200, 300, 500, 1000,
-  // 19 Standard Multipliers (0.1, 0.5, 10x)
-  0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, // 7 of 0.1x
-  0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, // 7 of 0.5x
-  10, 10, 10, 10, 10,                 // 5 of 10x
+  // 20 maleta na 0.3x
+  0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3,
+  0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3,
+  // 10 maleta na 0.2x
+  0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+  // 3 maleta na 10x
+  10, 10, 10,
+  // 1 maleta na 100x
+  100,
+  // 1 maleta na 1,000x
+  1000,
 ];
 
 const STAGE_BG_URL =
@@ -43,9 +54,10 @@ export function DealOrNoDealGame({
   onOpenCashier,
   onClose,
 }: DealOrNoDealGameProps) {
-  // Balance & Bet (matches Bet88 player balance)
+  // Balance & Bet (matches Bet88 player balance and selected mode)
   const [balance, setBalance] = useState<number>(userBalance);
-  const [bet, setBet] = useState<number>(100);
+  const [maxBoxesPerGame, setMaxBoxesPerGame] = useState<number>(6);
+  const [bet, setBet] = useState<number>(500);
 
   // Keep local balance in sync if parent userBalance changes (e.g. approved deposit)
   useEffect(() => {
@@ -53,6 +65,15 @@ export function DealOrNoDealGame({
       setBalance(userBalance);
     }
   }, [userBalance]);
+
+  // Handle Box Mode Selection (2 boxes = ₱100, 3 boxes = ₱200, 6 boxes = ₱500)
+  const handleSelectMaxBoxes = useCallback((boxes: number) => {
+    setMaxBoxesPerGame(boxes);
+    const matchedMode = BOX_MODES.find((m) => m.boxes === boxes);
+    if (matchedMode) {
+      setBet(matchedMode.bet);
+    }
+  }, []);
 
   // Active game metadata (Starts straight into playing immediately!)
   const [gameId, setGameId] = useState<string>('#BV-98214');
@@ -67,13 +88,13 @@ export function DealOrNoDealGame({
   // Total bets invested
   const [totalBetInvested, setTotalBetInvested] = useState<number>(0);
 
-  // Clean initial state: all 25 briefcases fresh and unopened
+  // Clean initial state: all 35 briefcases fresh and unopened
   const [briefcases, setBriefcases] = useState<Briefcase[]>(() => {
     const shuffledMultipliers = shuffleWithSeeds(
       BASE_MULTIPLIERS,
       `vault_initial:${Date.now()}`
     );
-    return Array.from({ length: 25 }, (_, i) => ({
+    return Array.from({ length: 35 }, (_, i) => ({
       id: i + 1,
       multiplier: shuffledMultipliers[i],
       isOpen: false,
@@ -141,7 +162,7 @@ export function DealOrNoDealGame({
       `${sSeed}:${provablyFair.clientSeed}:${newNonce}`
     );
 
-    const freshBriefcases: Briefcase[] = Array.from({ length: 25 }, (_, i) => ({
+    const freshBriefcases: Briefcase[] = Array.from({ length: 35 }, (_, i) => ({
       id: i + 1,
       multiplier: shuffledMultipliers[i],
       isOpen: false,
@@ -164,12 +185,11 @@ export function DealOrNoDealGame({
     setGameOverModal({ isOpen: false, winType: 'DEAL', payout: 0 });
   }, [provablyFair.clientSeed, provablyFair.nonce]);
 
-  const MAX_BOXES_PER_GAME = 6;
   const totalOpenedCount = useMemo(() => {
     return briefcases.filter((b) => b.isOpen).length;
   }, [briefcases]);
 
-  const remainingQuota = Math.max(0, MAX_BOXES_PER_GAME - totalOpenedCount);
+  const remainingQuota = Math.max(0, maxBoxesPerGame - totalOpenedCount);
 
   // Execute opening of selected boxes
   const executeBatchOpen = useCallback(
@@ -219,9 +239,9 @@ export function DealOrNoDealGame({
           gameId: 'deal_or_no_deal',
         });
 
-        // Check if any high value was revealed (>= 50x)
+        // Check if any high value was revealed (>= 10x)
         const anyHigh = briefcases.some(
-          (b) => openingSet.has(b.id) && b.multiplier >= 50
+          (b) => openingSet.has(b.id) && b.multiplier >= 10
         );
 
         if (batchPrizesWon >= totalBatchCost) {
@@ -251,8 +271,8 @@ export function DealOrNoDealGame({
 
         const newOpenedCount = updatedBriefcases.filter((b) => b.isOpen).length;
 
-        // If 6 boxes reached (Max 6 boxes per game), finish round and celebrate!
-        if (newOpenedCount >= MAX_BOXES_PER_GAME) {
+        // If max boxes reached for active mode, finish round and celebrate!
+        if (newOpenedCount >= maxBoxesPerGame) {
           const finalTotalWon = updatedBriefcases
             .filter((b) => b.isOpen)
             .reduce((sum, b) => sum + Math.round(bet * b.multiplier), 0);
@@ -271,6 +291,7 @@ export function DealOrNoDealGame({
       balance,
       bet,
       briefcases,
+      maxBoxesPerGame,
       onBalanceUpdate,
       onOpenCashier,
     ]
@@ -362,15 +383,15 @@ export function DealOrNoDealGame({
         {/* Top Casino Header */}
         <Header
           balance={balance}
-          bet={bet}
-          onBetChange={(newBet) => setBet(newBet)}
           onOpenRules={() => setShowRulesModal(true)}
           onAddFunds={(amt) => {
             const newBal = balance + amt;
             setBalance(newBal);
             onBalanceUpdate?.(newBal);
           }}
-          isGameActive={isOpeningBatch}
+          isGameActive={totalOpenedCount > 0 && phase === 'PLAYING'}
+          maxBoxesPerGame={maxBoxesPerGame}
+          onSelectMaxBoxes={handleSelectMaxBoxes}
           onClose={onClose}
           onOpenCashier={onOpenCashier}
         />
@@ -383,7 +404,7 @@ export function DealOrNoDealGame({
           selectedCount={selectedBoxIds.size}
           isOpeningBatch={isOpeningBatch}
           totalOpenedCount={totalOpenedCount}
-          maxBoxesPerGame={MAX_BOXES_PER_GAME}
+          maxBoxesPerGame={maxBoxesPerGame}
         />
 
         {/* Live Box Prize Won Toast */}
@@ -416,7 +437,7 @@ export function DealOrNoDealGame({
           </div>
         )}
 
-        {/* Main Game Arena: 5x5 Briefcase Grid */}
+        {/* Main Game Arena: 5x7 Briefcase Grid */}
         <BriefcaseGrid
           briefcases={briefcases}
           phase={phase}
@@ -428,7 +449,7 @@ export function DealOrNoDealGame({
           isOpeningBatch={isOpeningBatch}
           recentlyRevealedIds={recentlyRevealedIds}
           totalOpenedCount={totalOpenedCount}
-          maxBoxesPerGame={MAX_BOXES_PER_GAME}
+          maxBoxesPerGame={maxBoxesPerGame}
         />
 
         {/* Action Footer: CLAIM and OPEN BOX Buttons */}
@@ -477,6 +498,7 @@ export function DealOrNoDealGame({
           winType={gameOverModal.winType}
           payout={totalWon}
           bet={totalBetInvested}
+          maxBoxesPerGame={maxBoxesPerGame}
         />
       </main>
     </div>

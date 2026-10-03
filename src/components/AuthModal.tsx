@@ -10,6 +10,7 @@ interface AuthModalProps {
   onLoginSuccess: (user: UserProfile) => void;
   initialMode?: 'login' | 'register';
   noticeMessage?: string;
+  onOpenProfile?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -18,6 +19,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onLoginSuccess,
   initialMode = 'login',
   noticeMessage,
+  onOpenProfile,
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
   const [phone, setPhone] = useState('');
@@ -26,10 +28,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [promoCode, setPromoCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [registeredUser, setRegisteredUser] = useState<UserProfile | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
 
   React.useEffect(() => {
     setMode(initialMode);
-  }, [initialMode]);
+    setRegisteredUser(null);
+  }, [initialMode, isOpen]);
 
   if (!isOpen) return null;
 
@@ -64,11 +69,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (res.success && res.user) {
         sounds.playBigWin();
         onLoginSuccess(res.user);
-        onClose();
+        setRegisteredUser(res.user);
       } else {
         setErrorMsg(res.message || 'Registration failed');
       }
     }
+  };
+
+  const handleCopyRegisteredId = () => {
+    if (!registeredUser) return;
+    sounds.playClick();
+    const pid = registeredUser.playerId || `BET88-${registeredUser.phone.slice(-6)}`;
+    navigator.clipboard.writeText(pid);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
   };
 
   const handleQuickDemo = () => {
@@ -128,8 +142,70 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* If Just Registered: Show Profile Card with Player ID */}
+        {registeredUser ? (
+          <div className="p-6 space-y-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center text-3xl mx-auto shadow-lg shadow-emerald-500/10">
+              🎉
+            </div>
+
+            <div>
+              <h3 className="text-lg font-bold text-white">Rehistrasyon Matagumpay!</h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Welcome sa Bet88! Heto ang iyong opisyal na Player ID number:
+              </p>
+            </div>
+
+            {/* Official ID Box */}
+            <div className="p-4 bg-slate-950 border-2 border-amber-500/40 rounded-2xl relative shadow-inner">
+              <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block">
+                Official Player ID Number
+              </span>
+              <div className="flex items-center justify-center gap-2 mt-1">
+                <span className="text-2xl font-black font-mono text-white tracking-widest">
+                  {registeredUser.playerId || `BET88-${registeredUser.phone.slice(-6)}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyRegisteredId}
+                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg text-xs font-bold transition-all active:scale-95"
+                >
+                  {copiedId ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <div className="text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between">
+                <span>Account: <b className="text-slate-200">{registeredUser.username}</b></span>
+                <span>Mobile: <b className="font-mono text-slate-200">{registeredUser.phone}</b></span>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
+              🎁 Na-credit na ang ₱100.00 Free Play Bonus sa iyong account!
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onOpenProfile) onOpenProfile();
+                }}
+                className="py-3 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold text-xs uppercase rounded-xl transition-all border border-slate-700"
+              >
+                Tingnan ang Profile
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="py-3 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-amber-500/20"
+              >
+                Maglaro Na
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Form Body */
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {noticeMessage && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs rounded-xl flex items-center gap-2">
               <span className="text-base">🎰</span>
@@ -225,6 +301,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               : 'REGISTER & CLAIM ₱100 BONUS'}
           </button>
         </form>
+        )}
       </div>
     </div>
   );

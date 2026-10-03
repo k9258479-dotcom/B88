@@ -25,17 +25,17 @@ export const BankerMarquee: React.FC<BankerMarqueeProps> = ({
   const progressRatio = Math.min(1, Math.max(0, totalOpenedCount / maxBoxesPerGame));
   const remainingInGame = Math.max(0, maxBoxesPerGame - totalOpenedCount);
 
-  // Dynamic status text
+  // Dynamic status text in English
   let statusText = '';
   if (isOpeningBatch) {
-    statusText = `Binubuksan ang ${selectedCount} box...`;
+    statusText = `Opening ${selectedCount} ${selectedCount === 1 ? 'case' : 'cases'}...`;
   } else if (phase === 'GAME_OVER') {
-    statusText = 'Tapos na ang Round (6/6 Box)';
+    statusText = `Round Finished (${maxBoxesPerGame}/${maxBoxesPerGame} Cases)`;
   } else {
     if (selectedCount > 0) {
-      statusText = `${selectedCount} napili (${remainingInGame} natitira) • Pindutin ang Open Box`;
+      statusText = `${selectedCount} selected (${remainingInGame} left) • Press Open Box`;
     } else {
-      statusText = `${totalOpenedCount}/${maxBoxesPerGame} Box Nabuksan • Pumili ng ${remainingInGame} pa`;
+      statusText = `${totalOpenedCount}/${maxBoxesPerGame} Cases Opened • Pick ${remainingInGame} more`;
     }
   }
 
@@ -55,11 +55,11 @@ export const BankerMarquee: React.FC<BankerMarqueeProps> = ({
         <span className="text-[8px]">★</span>
         {isOpeningBatch ? (
           <span className="flex items-center gap-1 animate-pulse text-amber-950 font-black">
-            <Sparkles className="w-3 h-3 animate-spin" /> BINUBUKSAN ANG MGA BOX...
+            <Sparkles className="w-3 h-3 animate-spin" /> OPENING CASES...
           </span>
         ) : (
           <span className="flex items-center gap-1">
-            <Trophy className="w-2.5 h-2.5 text-black" /> KABUUANG NAPANALUNAN
+            <Trophy className="w-2.5 h-2.5 text-black" /> TOTAL WINNINGS
           </span>
         )}
         <span className="text-[8px]">★</span>
@@ -75,7 +75,7 @@ export const BankerMarquee: React.FC<BankerMarqueeProps> = ({
         </span>
       </div>
 
-      {/* 6-Box Progress Indicator */}
+      {/* Progress Indicator */}
       <div className="mt-1 flex items-center justify-center gap-2">
         <div className="h-1.5 flex-1 max-w-[70px] bg-black/60 rounded-full overflow-hidden p-0.5 border border-yellow-600/40">
           <div
@@ -87,7 +87,7 @@ export const BankerMarquee: React.FC<BankerMarqueeProps> = ({
         <p className="text-[10px] text-amber-200 font-semibold tracking-wide uppercase truncate max-w-[230px]">
           {isOpeningBatch ? (
             <span className="text-yellow-300 font-black animate-pulse">
-              ⚡ Binubuksan na...
+              ⚡ Revealing now...
             </span>
           ) : (
             <span className="text-yellow-200 font-bold">{statusText}</span>

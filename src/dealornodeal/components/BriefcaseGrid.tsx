@@ -34,11 +34,11 @@ export const BriefcaseGrid: React.FC<BriefcaseGridProps> = ({
 }) => {
   return (
     <section
-      className="relative z-20 flex-1 flex flex-col justify-center px-3.5 py-1"
+      className="relative z-20 flex-1 flex flex-col justify-start overflow-y-auto px-3 py-1 min-h-0"
       data-purpose="briefcase-stage-grid"
     >
-      {/* 5x5 Briefcase Stage Grid */}
-      <div className="w-full max-w-[384px] mx-auto grid grid-cols-5 gap-1.5 sm:gap-2">
+      {/* Briefcase Stage Grid (5x7 for 35 Briefcases) */}
+      <div className="w-full max-w-[384px] mx-auto grid grid-cols-5 gap-1 sm:gap-1.5 my-auto">
         {briefcases.map((bCase) => {
           const isEliminated = bCase.isOpen;
           const isSelected = selectedBoxIds.has(bCase.id);
@@ -78,7 +78,7 @@ export const BriefcaseGrid: React.FC<BriefcaseGridProps> = ({
                   </span>
                 </div>
 
-                {/* Prize won is displayed: e.g. ₱800 (0.8x) or ₱1,000 (1x) */}
+                {/* Prize won displayed */}
                 <span
                   className={`text-[8px] font-black mt-0.5 font-mono whitespace-nowrap ${
                     isWinningTier
@@ -129,10 +129,10 @@ export const BriefcaseGrid: React.FC<BriefcaseGridProps> = ({
                 </span>
               </button>
 
-              {/* Tag below unopened briefcase: NO MULTIPLIER SPOILER */}
+              {/* Tag below unopened briefcase */}
               {isSelected ? (
                 <span className="text-[9px] font-black text-yellow-300 animate-pulse tracking-wide mt-0.5 drop-shadow-[0_0_4px_#facc15]">
-                  NAPILI
+                  SELECTED
                 </span>
               ) : (
                 <span className="text-[9px] font-bold text-amber-400/60 mt-0.5 font-mono">
@@ -148,7 +148,7 @@ export const BriefcaseGrid: React.FC<BriefcaseGridProps> = ({
       <div className="mx-auto mt-2 flex items-center justify-center gap-3 text-[10px] uppercase font-bold text-amber-100/90 bg-black/60 border border-yellow-500/25 px-3 py-1 rounded-full backdrop-blur-sm shadow">
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block shadow-[0_0_5px_#34d399]"></span>{' '}
-          {totalOpenedCount} / {maxBoxesPerGame} Box Nabuksan
+          {totalOpenedCount} / {maxBoxesPerGame} Cases Opened
         </span>
         <span className="text-amber-500">•</span>
         <span className="text-yellow-300 font-extrabold">

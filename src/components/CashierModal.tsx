@@ -26,15 +26,16 @@ export const CashierModal: React.FC<CashierModalProps> = ({
   initialTab = 'deposit',
 }) => {
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'history'>(initialTab);
-  const [selectedMethod, setSelectedMethod] = useState<'GCash' | 'PayMaya' | 'Bank'>('GCash');
+  const [selectedMethod, setSelectedMethod] = useState<'GCash' | 'PayMaya' | 'PayMongo' | 'Bank'>('GCash');
 
   // Deposit state
   const [depositAmount, setDepositAmount] = useState<number>(500);
   const [depositPhone, setDepositPhone] = useState('');
   const [depositSuccessReceipt, setDepositSuccessReceipt] = useState<Transaction | null>(null);
+  const [paymongoCheckoutUrl, setPaymongoCheckoutUrl] = useState<string | null>(null);
 
   // Withdraw state
-  const [withdrawAmount, setWithdrawAmount] = useState<number>(500);
+  const [withdrawAmount, setWithdrawAmount] = useState<number>(200);
   const [withdrawPhone, setWithdrawPhone] = useState('');
   const [withdrawName, setWithdrawName] = useState('');
   const [withdrawSuccessMsg, setWithdrawSuccessMsg] = useState<string | null>(null);
@@ -47,12 +48,46 @@ export const CashierModal: React.FC<CashierModalProps> = ({
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    setPaymongoCheckoutUrl(null);
+
     if (depositAmount < 50) {
       setErrorMsg('Minimum deposit is ₱50.');
       return;
     }
 
     setIsLoading(true);
+
+    // If PayMongo gateway chosen or method is PayMongo
+    if (selectedMethod === ('PayMongo' as any)) {
+      try {
+        const res = await fetch('/api/paymongo/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: depositAmount,
+            phone: depositPhone,
+            description: `Bet88 Deposit ₱${depositAmount.toLocaleString()}`,
+          }),
+        });
+        const data = await res.json();
+        setIsLoading(false);
+        if (data.success && data.checkoutUrl) {
+          setPaymongoCheckoutUrl(data.checkoutUrl);
+          sounds.playCashout();
+          // Open PayMongo checkout in a new window or iframe
+          window.open(data.checkoutUrl, '_blank');
+          return;
+        } else {
+          setErrorMsg(data.message || 'Hindi ma-load ang PayMongo checkout. Subukan ang manual GCash/Maya.');
+          return;
+        }
+      } catch (err) {
+        setIsLoading(false);
+        setErrorMsg('Network error connecting to PayMongo gateway.');
+        return;
+      }
+    }
+
     const res = await api.deposit(depositAmount, selectedMethod, depositPhone);
     setIsLoading(false);
 
@@ -69,8 +104,8 @@ export const CashierModal: React.FC<CashierModalProps> = ({
   const handleWithdrawSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    if (withdrawAmount < 100) {
-      setErrorMsg('Minimum cashout is ₱100.');
+    if (withdrawAmount < 200) {
+      setErrorMsg('Ang minimum withdrawal ay ₱200.00.');
       return;
     }
     if (withdrawAmount > userBalance) {
@@ -217,44 +252,59 @@ export const CashierModal: React.FC<CashierModalProps> = ({
                     <label className="text-xs text-slate-400 font-semibold block mb-2">
                       1. Select Payment Method
                     </label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <button
                         type="button"
                         onClick={() => setSelectedMethod('GCash')}
-                        className={`p-3 rounded-xl border text-center transition-all ${
+                        className={`p-2.5 rounded-xl border text-center transition-all ${
                           selectedMethod === 'GCash'
                             ? 'bg-blue-600/20 border-blue-400 text-blue-300'
                             : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                         }`}
                       >
-                        <span className="font-black text-sm block text-blue-400">GCash</span>
-                        <span className="text-[10px] text-slate-400">Instant · 0% Fee</span>
+                        <span className="font-black text-xs block text-blue-400">GCash</span>
+                        <span className="text-[9px] text-slate-400">Instant · 0% Fee</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setSelectedMethod('PayMaya')}
-                        className={`p-3 rounded-xl border text-center transition-all ${
+                        className={`p-2.5 rounded-xl border text-center transition-all ${
                           selectedMethod === 'PayMaya'
                             ? 'bg-emerald-600/20 border-emerald-400 text-emerald-300'
                             : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                         }`}
                       >
-                        <span className="font-black text-sm block text-emerald-400">Maya</span>
-                        <span className="text-[10px] text-slate-400">Instant · 0% Fee</span>
+                        <span className="font-black text-xs block text-emerald-400">Maya</span>
+                        <span className="text-[9px] text-slate-400">Instant · 0% Fee</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMethod('PayMongo')}
+                        className={`p-2.5 rounded-xl border text-center transition-all ${
+                          selectedMethod === 'PayMongo'
+                            ? 'bg-purple-600/20 border-purple-400 text-purple-300 shadow-lg shadow-purple-500/20'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                        }`}
+                      >
+                        <span className="font-black text-xs block text-purple-400 flex items-center justify-center gap-1">
+                          PayMongo ⚡
+                        </span>
+                        <span className="text-[9px] text-amber-400 font-semibold">Auto-Credit Gateway</span>
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setSelectedMethod('Bank')}
-                        className={`p-3 rounded-xl border text-center transition-all ${
+                        className={`p-2.5 rounded-xl border text-center transition-all ${
                           selectedMethod === 'Bank'
                             ? 'bg-amber-600/20 border-amber-400 text-amber-300'
                             : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                         }`}
                       >
-                        <span className="font-black text-sm block text-amber-400">Online Bank</span>
-                        <span className="text-[10px] text-slate-400">BDO/BPI/Union</span>
+                        <span className="font-black text-xs block text-amber-400">Bank Transfer</span>
+                        <span className="text-[9px] text-slate-400">BDO/BPI/Union</span>
                       </button>
                     </div>
                   </div>
@@ -386,16 +436,16 @@ export const CashierModal: React.FC<CashierModalProps> = ({
                   <div>
                     <div className="flex justify-between items-center text-xs mb-1.5">
                       <span className="text-slate-400 font-semibold">2. Cashout Amount</span>
-                      <span className="text-slate-500">Max: ₱{userBalance.toLocaleString()}</span>
+                      <span className="text-amber-400/90 font-medium">Min: ₱200.00 · Max: ₱{userBalance.toLocaleString()}</span>
                     </div>
                     <input
                       type="number"
-                      min={100}
+                      min={200}
                       max={userBalance}
                       value={withdrawAmount}
                       onChange={e => setWithdrawAmount(parseFloat(e.target.value) || 0)}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:outline-none focus:border-amber-400"
-                      placeholder="Amount to withdraw"
+                      placeholder="Minimum ₱200"
                     />
                   </div>
 

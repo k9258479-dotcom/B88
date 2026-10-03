@@ -8,6 +8,7 @@ import { SuperAceGame } from './superace/SuperAceGame';
 import { DealOrNoDealGame } from './dealornodeal/DealOrNoDealGame';
 import { CashierModal } from './components/CashierModal';
 import { AuthModal } from './components/AuthModal';
+import { ProfileModal } from './components/ProfileModal';
 import { PromotionsModal } from './components/PromotionsModal';
 import { VIPModal } from './components/VIPModal';
 import { LiveChatWidget } from './components/LiveChatWidget';
@@ -51,6 +52,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [promosOpen, setPromosOpen] = useState(false);
   const [vipOpen, setVipOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [authNotice, setAuthNotice] = useState<string | undefined>(undefined);
 
   // Active Interactive Game
@@ -257,6 +259,7 @@ export default function App() {
         }}
         activeCategory={activeCategory}
         onLogout={handleLogout}
+        onOpenProfile={() => setProfileOpen(true)}
       />
 
       {/* When Game is Active: Direct Full Screen Game Experience */}
@@ -420,15 +423,22 @@ export default function App() {
         </button>
 
         <button
-          onClick={() => (user.isLoggedIn ? handleOpenCashier('history') : handleOpenAuth('login'))}
+          onClick={() => (user.isLoggedIn ? setProfileOpen(true) : handleOpenAuth('login'))}
           className="flex flex-col items-center gap-1 hover:text-amber-400"
         >
           <User className="w-4 h-4" />
-          <span>{user.isLoggedIn ? 'Account' : 'Login'}</span>
+          <span>{user.isLoggedIn ? 'Profile' : 'Login'}</span>
         </button>
       </nav>
 
       {/* Modals */}
+      <ProfileModal
+        isOpen={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        user={user}
+        onOpenCashier={handleOpenCashier}
+      />
+
       <CashierModal
         isOpen={cashierOpen}
         onClose={() => setCashierOpen(false)}
@@ -445,6 +455,7 @@ export default function App() {
         onLoginSuccess={handleLoginSuccess}
         initialMode={authMode}
         noticeMessage={authNotice}
+        onOpenProfile={() => setProfileOpen(true)}
       />
 
       <PromotionsModal

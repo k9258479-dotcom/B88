@@ -59,7 +59,7 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700 hover:border-emerald-500/50 text-zinc-300 hover:text-white flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-700 hover:border-emerald-500/50 text-zinc-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -68,8 +68,8 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
         {/* Info */}
         <div className="mt-4 space-y-3.5 text-xs text-zinc-300">
           <p className="text-[11px] leading-relaxed text-zinc-400">
-            Ang lahat ng multipliers sa 25 na maleta ay random na binuo at naka-lock gamit ang{' '}
-            <span className="text-emerald-300 font-semibold">SHA-256 hash</span> bago mo buksan ang unang kahon. Hindi ito maaaring baguhin ng Banker habang naglalaro.
+            All multipliers in the 35 briefcases are randomly generated and sealed using{' '}
+            <span className="text-emerald-300 font-semibold">SHA-256 cryptographic hashes</span> before you open your first case. The outcome cannot be altered during gameplay.
           </p>
 
           {/* Server Seed Hash */}
@@ -82,13 +82,13 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
               <span className="flex-1 select-all">{provablyFair.serverSeedHash}</span>
               <button
                 onClick={() => handleCopy(provablyFair.serverSeedHash, 'serverHash')}
-                className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 shrink-0"
+                className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 shrink-0 cursor-pointer"
                 title="Copy Hash"
               >
                 {copiedField === 'serverHash' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
             </div>
-            <p className="text-[9px] text-zinc-500">Ang hash na ito ay nilikha bago magsimula ang laro.</p>
+            <p className="text-[9px] text-zinc-500">This hash was predetermined and locked before the round started.</p>
           </div>
 
           {/* Client Seed */}
@@ -109,14 +109,14 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
                 <>
                   <button
                     onClick={() => setCustomClientSeed(generateSeed(16))}
-                    className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 shrink-0"
+                    className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 shrink-0 cursor-pointer"
                     title="Generate New Random Seed"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={handleApplyClientSeed}
-                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase shrink-0"
+                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] uppercase shrink-0 cursor-pointer"
                   >
                     Save
                   </button>
@@ -125,7 +125,7 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
             </div>
           </div>
 
-          {/* Nonce & Revealed Server Seed */}
+          {/* Nonce & RTP */}
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="bg-black/50 border border-emerald-500/20 rounded-xl p-2.5">
               <span className="text-[10px] text-zinc-400 block font-semibold">Game Nonce</span>
@@ -139,7 +139,7 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
 
           {/* Verifier Tool */}
           <div className="bg-black/40 border border-zinc-800 rounded-xl p-3 space-y-2">
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Quick SHA-256 Tester</span>
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">Quick SHA-256 Verifier</span>
             <div className="flex gap-1.5">
               <input
                 type="text"
@@ -150,7 +150,7 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
               />
               <button
                 onClick={handleVerify}
-                className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-bold"
+                className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[10px] font-bold cursor-pointer"
               >
                 Hash
               </button>
@@ -167,9 +167,9 @@ export const ProvablyFairModal: React.FC<ProvablyFairModalProps> = ({
         <div className="mt-5 text-center">
           <button
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold uppercase tracking-wider text-xs shadow-lg transition-all"
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-bold uppercase tracking-wider text-xs shadow-lg transition-all cursor-pointer"
           >
-            Isara (Close)
+            Close
           </button>
         </div>
       </div>

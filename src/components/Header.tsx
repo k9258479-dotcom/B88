@@ -12,6 +12,7 @@ interface HeaderProps {
   onSelectCategory: (cat: any) => void;
   activeCategory: string;
   onLogout: () => void;
+  onOpenProfile?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectCategory,
   activeCategory,
   onLogout,
+  onOpenProfile,
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full bg-slate-950/95 backdrop-blur-md border-b border-slate-800">
@@ -108,6 +110,25 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Crown className="w-3.5 h-3.5 text-amber-400" />
                 <span>VIP {user.vipLevel}</span>
+              </button>
+
+              {/* Player Profile & ID Badge Button */}
+              <button
+                onClick={onOpenProfile}
+                title="View Player Profile & ID"
+                className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-amber-500/30 hover:border-amber-400/80 rounded-xl text-xs transition-all group"
+              >
+                <div className="w-6 h-6 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-xs group-hover:scale-105 transition-transform">
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-left hidden sm:block">
+                  <span className="text-[11px] font-bold text-slate-100 block group-hover:text-amber-400 transition-colors leading-none">
+                    {user.username || 'Player'}
+                  </span>
+                  <span className="text-[10px] font-mono text-amber-400 font-semibold block leading-none mt-0.5">
+                    {user.playerId || `ID: ${user.phone.slice(-6)}`}
+                  </span>
+                </div>
               </button>
 
               {/* User Dropdown / Logout */}

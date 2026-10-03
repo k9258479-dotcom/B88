@@ -61,11 +61,11 @@
       <form id="adminLoginForm" class="space-y-4">
         <div>
           <label class="text-xs text-slate-400 font-semibold block mb-1">Admin / Staff Username o Mobile</label>
-          <input type="text" id="adminPhone" value="09060489645" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
+          <input type="text" id="adminPhone" placeholder="Mobile / Username" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
         </div>
         <div>
           <label class="text-xs text-slate-400 font-semibold block mb-1">Password</label>
-          <input type="password" id="adminPass" value="Dan051391" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
+          <input type="password" id="adminPass" placeholder="Ilagay ang Password" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-400" required />
         </div>
 
         <div id="loginError" class="hidden p-3 rounded-xl bg-red-950/80 border border-red-500 text-red-300 text-xs"></div>
@@ -119,6 +119,15 @@
       <button onclick="switchTab('tabWinRates')" id="btnTabWinRates" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5">
         <span>🎮</span>
         <span>Win Rates (RTP)</span>
+      </button>
+      <button onclick="switchTab('tabCSR')" id="btnTabCSR" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5">
+        <span>💬</span>
+        <span>Live Support (CSR)</span>
+        <span id="csrUnreadBadge" class="hidden px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold">0</span>
+      </button>
+      <button onclick="switchTab('tabPayMongo')" id="btnTabPayMongo" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5">
+        <span>💳</span>
+        <span>PayMongo Gateway</span>
       </button>
       <button onclick="switchTab('tabSecurity')" id="btnTabSecurity" class="py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white">
         🔐 Admin Login Settings
@@ -260,6 +269,7 @@
                   <th class="p-3">Ref No / Account</th>
                   <th class="p-3">Oras</th>
                   <th class="p-3">Approver / Staff</th>
+                  <th class="p-3 text-right">Aksyon</th>
                 </tr>
               </thead>
               <tbody id="allTbody" class="divide-y divide-slate-800/80 font-mono">
@@ -401,6 +411,7 @@
                 <label class="text-xs text-slate-400 block mb-1">Tungkulin at Access Role</label>
                 <select id="staffRoleInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-amber-400 font-bold text-xs focus:border-amber-400">
                   <option value="FINANCE_CASHIER">💳 Finance / Cashier (Approvals Queue Lamang)</option>
+                  <option value="CSR_SUPPORT">💬 Customer Support / CSR (Live Chat Replies Lamang)</option>
                   <option value="MARKETING_AFFILIATE">📢 Marketing / Affiliate (Referrals & Pixel Lamang)</option>
                   <option value="GAME_OPERATIONS">🎮 Game Operations (Player Turnover & RTP Lamang)</option>
                   <option value="SUPER_ADMIN">👑 Full Administrator (Lahat ng Tabs)</option>
@@ -541,7 +552,7 @@
           <form id="adminSecurityForm" class="space-y-4">
             <div>
               <label class="text-xs text-slate-400 font-semibold block mb-1">Bagong Admin Mobile / Username</label>
-              <input type="text" id="newAdminPhone" value="09060489645" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-amber-400" required />
+              <input type="text" id="newAdminPhone" placeholder="Mobile / Username" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-amber-400" required />
             </div>
 
             <div>
@@ -628,6 +639,170 @@
         </div>
       </section>
 
+      <!-- TAB 8: CSR LIVE SUPPORT CHAT -->
+      <section id="tabCSR" class="hidden space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>💬</span>
+              <span>24/7 Live Customer Support (CSR Operations)</span>
+            </h2>
+            <p class="text-xs text-slate-400">
+              Mensahe at katanungan ng mga manlalaro mula sa live chat widget. Direktang makipag-usap at sumagot mula sa dashboard.
+            </p>
+          </div>
+          <button onclick="loadCsrSessions()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg flex items-center gap-1.5">
+            🔄 I-refresh ang Chat Queue
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[600px] bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+          <!-- Left: Sessions list -->
+          <div class="border-r border-slate-800 flex flex-col bg-slate-950/50">
+            <div class="p-3 border-b border-slate-800 flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">Aktibong mga Pag-uusap</span>
+              <span id="csrSessionCount" class="text-[11px] font-mono text-amber-400 font-bold">0 player</span>
+            </div>
+            <div id="csrSessionsList" class="flex-1 overflow-y-auto divide-y divide-slate-800/60 font-mono text-xs">
+              <!-- Injected via JS -->
+            </div>
+          </div>
+
+          <!-- Right: Active Chat Thread & Reply Form -->
+          <div class="lg:col-span-2 flex flex-col h-full bg-slate-900/60">
+            <!-- Active Chat Header -->
+            <div id="csrActiveHeader" class="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm">
+                  👤
+                </div>
+                <div>
+                  <h4 id="csrActivePlayerName" class="text-xs font-bold text-white">Pumili ng Pag-uusap</h4>
+                  <span id="csrActivePlayerPhone" class="text-[10px] text-slate-400 font-mono">Walang napiling session</span>
+                </div>
+              </div>
+              <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                Online Session
+              </span>
+            </div>
+
+            <!-- Messages Thread Feed -->
+            <div id="csrMessagesFeed" class="flex-1 overflow-y-auto p-4 space-y-3 text-xs">
+              <div class="text-center text-slate-500 py-20 text-xs">
+                Pumili ng player conversation mula sa kaliwa upang magbasa at mag-reply.
+              </div>
+            </div>
+
+            <!-- Quick Template Chips -->
+            <div class="px-3 py-1.5 border-t border-slate-800/80 bg-slate-950/40 flex gap-1.5 overflow-x-auto text-[11px]">
+              <button onclick="insertCsrTemplate('Pumasok na po ang inyong balance sa inyong account. Pakicheck po ang inyong wallet.')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg whitespace-nowrap">
+                ⚡ Na-credit na ang Deposit
+              </button>
+              <button onclick="insertCsrTemplate('Ang minimum cashout po natin ay ₱200.00 at ipapadala ito agad sa inyong GCash/Maya.')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg whitespace-nowrap">
+                ⚡ Min. Cashout ₱200
+              </button>
+              <button onclick="insertCsrTemplate('Salamat sa pag-contact sa Bet88 Support! May maitutulong pa po ba ako sa inyo?')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg whitespace-nowrap">
+                ⚡ Closing Greetings
+              </button>
+            </div>
+
+            <!-- Reply Box Form -->
+            <form id="csrReplyForm" onsubmit="submitCsrReply(event)" class="p-3 border-t border-slate-800 bg-slate-950 flex gap-2">
+              <input
+                type="text"
+                id="csrReplyInput"
+                placeholder="I-type ang iyong tugon para sa player..."
+                class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-amber-400"
+                required
+              />
+              <button
+                type="submit"
+                id="csrReplyBtn"
+                class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-md shadow-amber-500/20"
+              >
+                I-send ang Reply
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 9: PAYMONGO PAYMENT GATEWAY INTEGRATION -->
+      <section id="tabPayMongo" class="hidden space-y-6">
+        <div class="max-w-2xl p-6 bg-slate-900 border border-purple-500/40 rounded-2xl shadow-xl space-y-5">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-purple-400 text-xl font-bold">
+                💳
+              </div>
+              <div>
+                <h2 class="text-base font-bold text-white flex items-center gap-2">
+                  <span>PayMongo Automated Payment Gateway Integration</span>
+                  <span id="paymongoStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400">INACTIVE</span>
+                </h2>
+                <p class="text-xs text-slate-400">
+                  I-konekta ang inyong PayMongo Public at Secret Keys upang automated ang pasok ng dinepositong pera sa wallet ng player.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <form id="paymongoConfigForm" onsubmit="savePayMongoConfig(event)" class="space-y-4">
+            <div class="p-3 bg-slate-950 border border-slate-800 rounded-xl flex items-center justify-between">
+              <div>
+                <span class="text-xs font-bold text-white block">Paganahin ang PayMongo Gateway (Enable)</span>
+                <span class="text-[11px] text-slate-400">Pag naka-on, magkakaroon ng PayMongo option ang cashier para sa auto-crediting.</span>
+              </div>
+              <input type="checkbox" id="pmIsEnabled" class="w-5 h-5 rounded bg-slate-900 border-slate-700 text-purple-600 cursor-pointer" />
+            </div>
+
+            <div>
+              <label class="text-xs text-slate-400 font-semibold block mb-1">PayMongo Public Key (Client Key)</label>
+              <input type="text" id="pmPublicKey" placeholder="e.g. pk_live_... o pk_test_..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-purple-400" />
+            </div>
+
+            <div>
+              <label class="text-xs text-slate-400 font-semibold block mb-1">PayMongo Secret Key (Server Key - Auto-Charge & Webhook)</label>
+              <input type="password" id="pmSecretKey" placeholder="e.g. sk_live_... o sk_test_..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-purple-400" />
+            </div>
+
+            <div>
+              <label class="text-xs text-slate-400 font-semibold block mb-1">PayMongo Webhook Secret Key (Optional - para sa automated webhook)</label>
+              <input type="password" id="pmWebhookSecret" placeholder="e.g. whsec_..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white font-mono text-xs focus:border-purple-400" />
+            </div>
+
+            <!-- Webhook URL Display Box -->
+            <div class="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-1">
+              <span class="text-[11px] font-bold text-slate-400 uppercase">Inyong Live Webhook URL (I-paste sa PayMongo Dashboard):</span>
+              <div class="flex items-center justify-between gap-2">
+                <span id="pmWebhookUrl" class="font-mono text-xs text-cyan-400 select-all break-all">https://.../api/paymongo/webhook</span>
+                <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('pmWebhookUrl').textContent); showToast('Webhook URL copied!');" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 rounded-lg whitespace-nowrap">
+                  Copy
+                </button>
+              </div>
+            </div>
+
+            <div id="pmFeedback" class="hidden text-xs p-3 rounded-xl"></div>
+
+            <div class="flex gap-3 pt-2">
+              <button
+                type="submit"
+                class="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-xs uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-purple-600/30"
+              >
+                I-save ang PayMongo Settings
+              </button>
+              <button
+                type="button"
+                onclick="testPayMongoConnection()"
+                class="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-purple-300 font-bold text-xs uppercase rounded-xl transition-all border border-slate-700"
+              >
+                I-test ang Koneksyon
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -675,56 +850,76 @@
 
     // Role-based Tab Permissions
     const ROLE_TABS = {
-      SUPER_ADMIN: ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabSecurity', 'tabMeta'],
-      FINANCE_CASHIER: ['tabCashier'],
+      SUPER_ADMIN: ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabCSR', 'tabPayMongo', 'tabSecurity', 'tabMeta'],
+      FINANCE_CASHIER: ['tabCashier', 'tabPayMongo'],
       MARKETING_AFFILIATE: ['tabReferrals', 'tabMeta'],
       GAME_OPERATIONS: ['tabUsers', 'tabWinRates'],
+      CSR_SUPPORT: ['tabCSR'],
     };
 
-    function applyRolePermissions(role, name) {
+    const ALL_TAB_IDS = ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabCSR', 'tabPayMongo', 'tabSecurity', 'tabMeta'];
+    let currentAllowedTabs = [...ROLE_TABS.SUPER_ADMIN];
+
+    function applyRolePermissions(role, name, staffAllowedTabs) {
       currentAdminRole = role || 'SUPER_ADMIN';
       currentAdminName = name || 'Master Admin';
 
       document.getElementById('adminDisplayName').textContent = `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`;
 
-      const allowedTabs = ROLE_TABS[currentAdminRole] || ROLE_TABS.SUPER_ADMIN;
+      if (currentAdminRole === 'SUPER_ADMIN') {
+        currentAllowedTabs = [...ROLE_TABS.SUPER_ADMIN];
+      } else if (staffAllowedTabs && Array.isArray(staffAllowedTabs) && staffAllowedTabs.length > 0) {
+        currentAllowedTabs = staffAllowedTabs;
+      } else {
+        currentAllowedTabs = ROLE_TABS[currentAdminRole] || ['tabCashier'];
+      }
 
-      // Show/Hide buttons
-      ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabSecurity', 'tabMeta'].forEach(id => {
+      // Show/Hide buttons and hard-lock sections
+      ALL_TAB_IDS.forEach(id => {
         const btn = document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1));
+        const section = document.getElementById(id);
         if (btn) {
-          if (allowedTabs.includes(id)) {
+          if (currentAllowedTabs.includes(id)) {
             btn.classList.remove('hidden');
           } else {
             btn.classList.add('hidden');
           }
         }
+        if (section && !currentAllowedTabs.includes(id)) {
+          section.classList.add('hidden');
+        }
       });
 
       // Switch to the first allowed tab
-      switchTab(allowedTabs[0]);
+      switchTab(currentAllowedTabs[0] || 'tabCashier');
     }
 
     // Tab switching
     function switchTab(tabId) {
-      const allTabIds = ['tabCashier', 'tabUsers', 'tabStaff', 'tabReferrals', 'tabWinRates', 'tabSecurity', 'tabMeta'];
-      allTabIds.forEach(id => {
+      if (!currentAllowedTabs.includes(tabId)) {
+        showToast('Wala kang pahintulot na buksan ang tab na ito.', 'error');
+        return;
+      }
+
+      ALL_TAB_IDS.forEach(id => {
         const el = document.getElementById(id);
         const btn = document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1));
         if (el) el.classList.add('hidden');
-        if (btn) btn.className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white';
+        if (btn) btn.className = 'py-3 px-4 border-b-2 border-transparent text-slate-400 hover:text-white flex items-center gap-1.5';
       });
 
       const activeSection = document.getElementById(tabId);
       const activeBtn = document.getElementById('btn' + tabId.charAt(0).toUpperCase() + tabId.slice(1));
       if (activeSection) activeSection.classList.remove('hidden');
-      if (activeBtn) activeBtn.className = 'py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5';
+      if (activeBtn) activeBtn.className = 'py-3 px-4 border-b-2 border-amber-400 text-amber-400 bg-amber-500/5 flex items-center gap-1.5';
 
       if (tabId === 'tabCashier') loadTransactions();
       if (tabId === 'tabUsers') loadUsers();
       if (tabId === 'tabStaff') loadStaffAccounts();
       if (tabId === 'tabReferrals') loadReferrals();
       if (tabId === 'tabWinRates') loadWinRates();
+      if (tabId === 'tabCSR') loadCsrSessions();
+      if (tabId === 'tabPayMongo') loadPayMongoConfig();
       if (tabId === 'tabSecurity') loadSecurityTab();
       if (tabId === 'tabMeta') loadMeta();
     }
@@ -738,9 +933,13 @@
     const savedAuth = sessionStorage.getItem('bet88_admin_authed');
     const savedRole = sessionStorage.getItem('bet88_admin_role') || 'SUPER_ADMIN';
     const savedName = sessionStorage.getItem('bet88_admin_name') || 'Master Admin';
+    let savedTabs = null;
+    try {
+      savedTabs = JSON.parse(sessionStorage.getItem('bet88_admin_allowed_tabs') || 'null');
+    } catch {}
 
     if (savedAuth === 'true') {
-      showDashboard(savedRole, savedName);
+      showDashboard(savedRole, savedName, savedTabs);
     }
 
     loginForm.addEventListener('submit', async (e) => {
@@ -762,26 +961,41 @@
             sessionStorage.setItem('bet88_admin_authed', 'true');
             sessionStorage.setItem('bet88_admin_role', data.role || 'SUPER_ADMIN');
             sessionStorage.setItem('bet88_admin_name', data.name || 'Master Admin');
-            showDashboard(data.role || 'SUPER_ADMIN', data.name || 'Master Admin');
+            if (data.allowedTabs) {
+              sessionStorage.setItem('bet88_admin_allowed_tabs', JSON.stringify(data.allowedTabs));
+            }
+            showDashboard(data.role || 'SUPER_ADMIN', data.name || 'Master Admin', data.allowedTabs);
             return;
           }
         }
       } catch (err) {}
 
-      // 2. Check Firestore admin credentials
+      // 2. Check localStorage updated credentials
+      const localCreds = getStoredData('admin_credentials', { phone: '09060489645', password: 'Dan051391' });
+      if (phone === localCreds.phone && password === localCreds.password) {
+        sessionStorage.setItem('bet88_admin_authed', 'true');
+        sessionStorage.setItem('bet88_admin_role', 'SUPER_ADMIN');
+        sessionStorage.setItem('bet88_admin_name', 'Master Admin');
+        sessionStorage.setItem('bet88_admin_allowed_tabs', JSON.stringify(ROLE_TABS.SUPER_ADMIN));
+        showDashboard('SUPER_ADMIN', 'Master Admin', ROLE_TABS.SUPER_ADMIN);
+        return;
+      }
+
+      // 3. Check Firestore admin credentials
       try {
         if (window.bet88Firestore) {
           const { db, doc, getDoc, collection, getDocs } = window.bet88Firestore;
 
           // Master credentials check
           const adminDoc = await getDoc(doc(db, 'settings', 'admin_credentials'));
-          const master = adminDoc.exists() ? adminDoc.data() : { phone: '09060489645', password: 'Dan051391' };
+          const master = adminDoc.exists() ? adminDoc.data() : localCreds;
 
           if (phone === master.phone && password === master.password) {
             sessionStorage.setItem('bet88_admin_authed', 'true');
             sessionStorage.setItem('bet88_admin_role', 'SUPER_ADMIN');
             sessionStorage.setItem('bet88_admin_name', 'Master Admin');
-            showDashboard('SUPER_ADMIN', 'Master Admin');
+            sessionStorage.setItem('bet88_admin_allowed_tabs', JSON.stringify(ROLE_TABS.SUPER_ADMIN));
+            showDashboard('SUPER_ADMIN', 'Master Admin', ROLE_TABS.SUPER_ADMIN);
             return;
           }
 
@@ -801,25 +1015,17 @@
               loginError.classList.remove('hidden');
               return;
             }
+            const sTabs = matchedStaff.allowedTabs || ROLE_TABS[matchedStaff.role] || ['tabCashier'];
             sessionStorage.setItem('bet88_admin_authed', 'true');
             sessionStorage.setItem('bet88_admin_role', matchedStaff.role || 'FINANCE_CASHIER');
             sessionStorage.setItem('bet88_admin_name', matchedStaff.name || 'Staff');
-            showDashboard(matchedStaff.role, matchedStaff.name);
+            sessionStorage.setItem('bet88_admin_allowed_tabs', JSON.stringify(sTabs));
+            showDashboard(matchedStaff.role, matchedStaff.name, sTabs);
             return;
           }
         }
       } catch (err) {
         console.warn('Firestore auth check:', err);
-      }
-
-      // 3. Fallback default credential checking
-      const localCreds = getStoredData('admin_credentials', { phone: '09060489645', password: 'Dan051391' });
-      if (phone === localCreds.phone && password === localCreds.password) {
-        sessionStorage.setItem('bet88_admin_authed', 'true');
-        sessionStorage.setItem('bet88_admin_role', 'SUPER_ADMIN');
-        sessionStorage.setItem('bet88_admin_name', 'Master Admin');
-        showDashboard('SUPER_ADMIN', 'Master Admin');
-        return;
       }
 
       loginError.textContent = 'Maling password o username.';
@@ -830,14 +1036,15 @@
       sessionStorage.removeItem('bet88_admin_authed');
       sessionStorage.removeItem('bet88_admin_role');
       sessionStorage.removeItem('bet88_admin_name');
+      sessionStorage.removeItem('bet88_admin_allowed_tabs');
       dashboardSection.classList.add('hidden');
       loginSection.classList.remove('hidden');
     });
 
-    function showDashboard(role = 'SUPER_ADMIN', name = 'Master Admin') {
+    function showDashboard(role = 'SUPER_ADMIN', name = 'Master Admin', allowedTabs = null) {
       loginSection.classList.add('hidden');
       dashboardSection.classList.remove('hidden');
-      applyRolePermissions(role, name);
+      applyRolePermissions(role, name, allowedTabs);
     }
 
     // ==========================================
@@ -845,6 +1052,7 @@
     // ==========================================
     async function loadTransactions() {
       let transactions = [];
+      const approvedIds = new Set(getStoredData('approved_tx_ids', []));
 
       // 1. Try Firestore direct read
       try {
@@ -879,9 +1087,27 @@
       const mergedMap = new Map();
       transactions.forEach(t => mergedMap.set(t.id, t));
       localTxs.forEach(t => {
-        if (!mergedMap.has(t.id)) mergedMap.set(t.id, t);
+        const existing = mergedMap.get(t.id);
+        if (existing) {
+          if (t.status === 'APPROVED' || existing.status === 'APPROVED') {
+            existing.status = 'APPROVED';
+          }
+        } else {
+          mergedMap.set(t.id, t);
+        }
       });
       transactions = Array.from(mergedMap.values());
+
+      // Guarantee that anything previously marked as APPROVED stays APPROVED!
+      transactions.forEach(t => {
+        if (t.status === 'APPROVED' || t.status === 'COMPLETED') {
+          approvedIds.add(t.id);
+          if (t.referenceNo) approvedIds.add(t.referenceNo);
+        } else if (approvedIds.has(t.id) || (t.referenceNo && approvedIds.has(t.referenceNo))) {
+          t.status = 'APPROVED';
+        }
+      });
+      setStoredData('approved_tx_ids', Array.from(approvedIds));
 
       cachedTransactions = transactions;
       calculateCashierStats(transactions);
@@ -940,7 +1166,8 @@
       pendingTbody.innerHTML = '';
       pending.forEach(t => {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-900/90 transition-colors';
+        tr.id = `pendingRow_${t.id}`;
+        tr.className = 'hover:bg-slate-900/90 transition-all';
         tr.innerHTML = `
           <td class="p-3">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1008,7 +1235,7 @@
 
       const allTbody = document.getElementById('allTbody');
       if (list.length === 0) {
-        allTbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-slate-500">Walang nahanap na transaksyon para sa napiling filter.</td></tr>';
+        allTbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-slate-500">Walang nahanap na transaksyon para sa napiling filter.</td></tr>';
         return;
       }
 
@@ -1016,7 +1243,7 @@
       list.forEach(t => {
         const amt = parseFloat(t.amount) || 0;
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-900/60';
+        tr.className = 'hover:bg-slate-900/60 transition-colors';
         tr.innerHTML = `
           <td class="p-3">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1034,12 +1261,17 @@
           <td class="p-3 text-slate-400 font-mono text-[11px]">${t.referenceNo || '-'}</td>
           <td class="p-3 text-slate-500 text-[11px]">${t.timestamp || 'Today'}</td>
           <td class="p-3 text-slate-400 text-[11px]">${t.approvedBy || '-'}</td>
+          <td class="p-3 text-right">
+            <button onclick="deleteTransaction('${t.id}')" class="px-2.5 py-1 bg-red-950/80 hover:bg-red-900 border border-red-800/80 text-red-300 rounded-lg text-[11px] font-bold transition-all active:scale-95 shadow-sm" title="Tanggalin ang transaksyong ito">
+              🗑️ Delete
+            </button>
+          </td>
         `;
         allTbody.appendChild(tr);
       });
     }
 
-    // Direct 1-Click Approve Transaction with Automatic Balance Crediting
+    // Direct 1-Click Approve Transaction with Instant Disappearance from Pending
     async function approveTransaction(transactionId) {
       const btn = document.getElementById(`btnApprove_${transactionId}`);
       if (btn) {
@@ -1057,15 +1289,41 @@
       const amount = parseFloat(tx.amount) || 0;
       const phone = tx.userPhone;
 
-      // 1. Update in Firestore
+      // 1. Immediately update local state so the pending row instantly vanishes!
+      tx.status = 'APPROVED';
+      tx.approvedBy = `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`;
+
+      // Save to permanent approved list
+      const approvedIds = new Set(getStoredData('approved_tx_ids', []));
+      approvedIds.add(transactionId);
+      if (tx.referenceNo) approvedIds.add(tx.referenceNo);
+      setStoredData('approved_tx_ids', Array.from(approvedIds));
+
+      // Instant UI update
+      calculateCashierStats(cachedTransactions);
+      renderPendingQueue(cachedTransactions);
+      renderFilteredTransactions();
+
+      // 2. Update in Firestore
       try {
         if (window.bet88Firestore) {
-          const { db, doc, getDoc, updateDoc, setDoc } = window.bet88Firestore;
-          // Update transaction status
-          await updateDoc(doc(db, 'transactions', transactionId), {
-            status: 'APPROVED',
-            approvedBy: `${currentAdminName} (${currentAdminRole})`,
-            approvedAt: new Date().toISOString()
+          const { db, doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs } = window.bet88Firestore;
+          try {
+            await updateDoc(doc(db, 'transactions', transactionId), {
+              status: 'APPROVED',
+              approvedBy: `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`,
+              approvedAt: new Date().toISOString()
+            });
+          } catch (e) {}
+
+          const q = query(collection(db, 'transactions'), where('id', '==', transactionId));
+          const snaps = await getDocs(q);
+          snaps.forEach(async (d) => {
+            await updateDoc(d.ref, {
+              status: 'APPROVED',
+              approvedBy: `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`,
+              approvedAt: new Date().toISOString()
+            });
           });
 
           // If DEPOSIT, credit the player's balance in Firestore!
@@ -1099,23 +1357,29 @@
         console.warn('Firestore approve sync:', err);
       }
 
-      // 2. Notify backend Express server
+      // 3. Notify backend Express server
       try {
         await fetch('/api/admin/transactions/approve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transactionId, userPhone: phone, amount, type: tx.type })
+          body: JSON.stringify({
+            transactionId,
+            referenceNo: tx.referenceNo,
+            userPhone: phone,
+            amount,
+            type: tx.type
+          })
         });
       } catch (err) {}
 
-      // 3. Update localStorage fallback
+      // 4. Update localStorage fallback
       let txs = getStoredData('transactions', []);
       const localTarget = txs.find(t => t.id === transactionId);
       if (localTarget) {
         localTarget.status = 'APPROVED';
-        localTarget.approvedBy = `${currentAdminName} (${currentAdminRole})`;
+        localTarget.approvedBy = `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`;
       } else {
-        txs.unshift({ ...tx, status: 'APPROVED', approvedBy: `${currentAdminName} (${currentAdminRole})` });
+        txs.unshift({ ...tx, status: 'APPROVED', approvedBy: `${currentAdminName} (${currentAdminRole.replace('_', ' ')})` });
       }
       setStoredData('transactions', txs);
 
@@ -1135,8 +1399,7 @@
         }
       }
 
-      showToast(`Tagumpay! Na-aprubahan ang ₱${amount.toLocaleString()} deposit para kay ${phone}. Pumasok na ang balanse!`, 'success');
-      loadTransactions();
+      showToast(`Tagumpay! Na-aprubahan ang ₱${amount.toLocaleString()} ${tx.type} para kay ${phone}. Nawala na sa pending at pumasok na ang credits!`, 'success');
     }
 
     // Reject Transaction
@@ -1147,6 +1410,15 @@
       const tx = cachedTransactions.find(t => t.id === transactionId);
       if (!tx) return;
 
+      // Immediately mark as rejected
+      tx.status = 'REJECTED';
+      tx.rejectionReason = reason;
+      tx.approvedBy = `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`;
+
+      calculateCashierStats(cachedTransactions);
+      renderPendingQueue(cachedTransactions);
+      renderFilteredTransactions();
+
       // 1. Update in Firestore
       try {
         if (window.bet88Firestore) {
@@ -1154,7 +1426,7 @@
           await updateDoc(doc(db, 'transactions', transactionId), {
             status: 'REJECTED',
             rejectionReason: reason,
-            approvedBy: `${currentAdminName} (${currentAdminRole})`
+            approvedBy: `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`
           });
 
           // If withdrawal was rejected, refund the player's balance!
@@ -1185,12 +1457,56 @@
       if (localTarget) {
         localTarget.status = 'REJECTED';
         localTarget.rejectionReason = reason;
-        localTarget.approvedBy = `${currentAdminName} (${currentAdminRole})`;
+        localTarget.approvedBy = `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`;
       }
       setStoredData('transactions', txs);
 
       showToast(`Transaction ${transactionId} ay na-REJECTED.`, 'error');
-      loadTransactions();
+    }
+
+    // Delete Transaction (Approved or Withdrawn records deletion)
+    async function deleteTransaction(transactionId) {
+      if (!confirm('Sigurado ka bang nais mong tanggalin ang transaksyong ito sa talaan at database?')) return;
+
+      // 1. Remove from backend API
+      try {
+        await fetch('/api/admin/transactions/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionId })
+        });
+      } catch (err) {}
+
+      // 2. Remove from Firestore
+      try {
+        if (window.bet88Firestore) {
+          const { db, doc, deleteDoc, collection, query, where, getDocs } = window.bet88Firestore;
+          try { await deleteDoc(doc(db, 'transactions', transactionId)); } catch (e) {}
+          const q = query(collection(db, 'transactions'), where('id', '==', transactionId));
+          const snaps = await getDocs(q);
+          snaps.forEach(async (d) => {
+            await deleteDoc(d.ref);
+          });
+        }
+      } catch (err) {}
+
+      // 3. Remove from localStorage
+      let localTxs = getStoredData('transactions', []);
+      localTxs = localTxs.filter(t => t.id !== transactionId);
+      setStoredData('transactions', localTxs);
+
+      // Remove from approved list
+      let approvedIds = getStoredData('approved_tx_ids', []);
+      approvedIds = approvedIds.filter(id => id !== transactionId);
+      setStoredData('approved_tx_ids', approvedIds);
+
+      // 4. Remove from cachedTransactions
+      cachedTransactions = cachedTransactions.filter(t => t.id !== transactionId);
+
+      showToast(`Transaksyon matagumpay na natanggal sa talaan.`, 'info');
+      calculateCashierStats(cachedTransactions);
+      renderPendingQueue(cachedTransactions);
+      renderFilteredTransactions();
     }
 
     // ==========================================
@@ -1480,15 +1796,34 @@
 
       tbody.innerHTML = '';
       staffList.forEach(s => {
+        const staffTabs = s.allowedTabs && s.allowedTabs.length > 0 ? s.allowedTabs : (ROLE_TABS[s.role] || ['tabCashier']);
+        const tabLabels = staffTabs.map(t => {
+          if (t === 'tabCashier') return 'Cashier';
+          if (t === 'tabCSR') return 'Live Chat (CSR)';
+          if (t === 'tabPayMongo') return 'PayMongo';
+          if (t === 'tabUsers') return 'Players';
+          if (t === 'tabReferrals') return 'Referrals';
+          if (t === 'tabWinRates') return 'Win Rates';
+          if (t === 'tabMeta') return 'Meta Pixel';
+          if (t === 'tabSecurity') return 'Admin Security';
+          if (t === 'tabStaff') return 'Staff Controller';
+          return t;
+        }).join(', ');
+
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-900/60';
         tr.innerHTML = `
-          <td class="p-3 font-bold text-white">${s.name}</td>
+          <td class="p-3 font-bold text-white">
+            <div>${s.name}</div>
+            <div class="text-[10px] text-slate-400 font-normal">Allowed: <span class="text-amber-300 font-semibold">${tabLabels}</span></div>
+          </td>
           <td class="p-3 font-mono text-amber-400 font-bold">${s.username}</td>
           <td class="p-3">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
               s.role === 'FINANCE_CASHIER'
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : s.role === 'CSR_SUPPORT'
+                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                 : s.role === 'MARKETING_AFFILIATE'
                 ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                 : s.role === 'GAME_OPERATIONS'
@@ -1526,12 +1861,15 @@
         return;
       }
 
+      const assignedTabs = ROLE_TABS[role] || ['tabCashier'];
+
       const newStaff = {
         id: 'stf_' + Date.now(),
         name,
         username,
         password,
         role,
+        allowedTabs: assignedTabs,
         status: 'ACTIVE',
         createdAt: new Date().toISOString().split('T')[0]
       };
@@ -1560,7 +1898,7 @@
       else localStaff.unshift(newStaff);
       setStoredData('staff_accounts', localStaff);
 
-      showToast(`Staff account "${name}" created with role ${role}!`, 'success');
+      showToast(`Staff account "${name}" created with role ${role} (Access: ${assignedTabs.join(', ')})!`, 'success');
       document.getElementById('staffNameInput').value = '';
       document.getElementById('staffUserInput').value = '';
       document.getElementById('staffPassInput').value = '';
@@ -1743,17 +2081,37 @@
     // 5. SECURITY & MASTER ADMIN LOGIN SETTINGS
     // ==========================================
     async function loadSecurityTab() {
-      let currentCreds = { phone: '09060489645', password: 'Dan051391' };
+      let currentPhone = '09060489645';
+
+      // 1. Try Backend API credentials check
+      try {
+        const res = await fetch('/api/admin/credentials-check');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.phone) {
+            currentPhone = data.phone;
+          }
+        }
+      } catch (err) {}
+
+      // 2. Try localStorage
+      const localCreds = getStoredData('admin_credentials', null);
+      if (localCreds && localCreds.phone) {
+        currentPhone = localCreds.phone;
+      }
+
+      // 3. Try Firestore
       try {
         if (window.bet88Firestore) {
           const { db, doc, getDoc } = window.bet88Firestore;
           const snap = await getDoc(doc(db, 'settings', 'admin_credentials'));
-          if (snap.exists()) {
-            currentCreds = snap.data();
+          if (snap.exists() && snap.data().phone) {
+            currentPhone = snap.data().phone;
           }
         }
       } catch (err) {}
-      document.getElementById('newAdminPhone').value = currentCreds.phone || '09060489645';
+
+      document.getElementById('newAdminPhone').value = currentPhone;
     }
 
     document.getElementById('adminSecurityForm').addEventListener('submit', async (e) => {
@@ -1775,7 +2133,21 @@
         return;
       }
 
-      // 1. Save to Firestore
+      // 1. Notify backend Express server
+      let apiSuccess = false;
+      try {
+        const res = await fetch('/api/admin/change-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: newPhone, password: newPass })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) apiSuccess = true;
+        }
+      } catch (err) {}
+
+      // 2. Save to Firestore
       try {
         if (window.bet88Firestore) {
           const { db, doc, setDoc } = window.bet88Firestore;
@@ -1787,20 +2159,11 @@
         }
       } catch (err) {}
 
-      // 2. Notify backend Express server
-      try {
-        await fetch('/api/admin/change-credentials', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: newPhone, password: newPass })
-        });
-      } catch (err) {}
-
-      // 3. Save to localStorage
+      // 3. Save to localStorage permanently
       setStoredData('admin_credentials', { phone: newPhone, password: newPass });
 
       feedback.className = 'text-xs p-3 rounded-xl bg-emerald-950 border border-emerald-500 text-emerald-300 block';
-      feedback.textContent = 'Matagumpay na nabago ang Admin Login Details! Gamitin ito sa susunod na login sa anumang computer.';
+      feedback.textContent = `Matagumpay na nabago ang Admin Login Details (${newPhone})! Aktibo na ang bagong password at magagamit sa susunod na login.`;
       showToast('Admin Login Credentials successfully updated!', 'success');
 
       document.getElementById('currentAdminPass').value = '';
@@ -2076,6 +2439,266 @@
       setStoredData('metaConfig', config);
       showToast('Meta Test Signal Dispatched to Facebook Events Manager!', 'info');
       loadMeta();
+    }
+
+    // ==========================================
+    // 8. CSR LIVE CUSTOMER SUPPORT CHAT
+    // ==========================================
+    let currentCsrSessionId = null;
+
+    async function loadCsrSessions() {
+      try {
+        const res = await fetch('/api/chat/sessions');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.sessions) {
+            renderCsrSessions(data.sessions);
+            return;
+          }
+        }
+      } catch (err) {}
+
+      // Fallback display if no sessions yet
+      renderCsrSessions([
+        {
+          sessionId: '09060489645',
+          phone: '09060489645',
+          playerName: 'Player_9645',
+          lastMessage: 'Hello po! Mabilis po ba pumasok ang cash-in gamit ang GCash at PayMaya?',
+          lastTime: '10:14 AM',
+          unreadCount: 1,
+        }
+      ]);
+    }
+
+    function renderCsrSessions(sessions) {
+      const container = document.getElementById('csrSessionsList');
+      document.getElementById('csrSessionCount').textContent = `${sessions.length} player`;
+
+      let totalUnread = 0;
+      sessions.forEach(s => totalUnread += (s.unreadCount || 0));
+      const badge = document.getElementById('csrUnreadBadge');
+      if (badge) {
+        if (totalUnread > 0) {
+          badge.textContent = totalUnread;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+      }
+
+      if (sessions.length === 0) {
+        container.innerHTML = '<div class="p-6 text-center text-slate-500 text-xs font-mono">Walang aktibong pag-uusap sa ngayon.</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      sessions.forEach(s => {
+        const item = document.createElement('div');
+        const isSelected = currentCsrSessionId === s.sessionId;
+        item.className = `p-3.5 cursor-pointer hover:bg-slate-900 transition-colors ${isSelected ? 'bg-amber-500/10 border-l-4 border-amber-400' : ''}`;
+        item.onclick = () => selectCsrSession(s.sessionId, s.phone, s.playerName);
+        item.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-white text-xs">${s.playerName || 'Player'}</span>
+            <span class="text-[10px] text-slate-500">${s.lastTime || ''}</span>
+          </div>
+          <p class="text-[11px] text-slate-400 truncate">${s.lastMessage || '...'}</p>
+          <div class="flex items-center justify-between mt-1 text-[10px]">
+            <span class="text-amber-400/80 font-mono">${s.phone || s.sessionId}</span>
+            ${s.unreadCount > 0 ? `<span class="px-1.5 py-0.5 rounded-full bg-red-500 text-white font-bold text-[9px]">${s.unreadCount} bagong chat</span>` : ''}
+          </div>
+        `;
+        container.appendChild(item);
+      });
+
+      if (!currentCsrSessionId && sessions.length > 0) {
+        selectCsrSession(sessions[0].sessionId, sessions[0].phone, sessions[0].playerName);
+      }
+    }
+
+    async function selectCsrSession(sessionId, phone, playerName) {
+      currentCsrSessionId = sessionId;
+      document.getElementById('csrActivePlayerName').textContent = playerName || 'Player';
+      document.getElementById('csrActivePlayerPhone').textContent = `Mobile: ${phone || sessionId} · Session ID: ${sessionId}`;
+
+      await loadCsrMessages(sessionId);
+    }
+
+    async function loadCsrMessages(sessionId) {
+      try {
+        const res = await fetch(`/api/chat/messages?sessionId=${encodeURIComponent(sessionId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.messages) {
+            renderCsrMessages(data.messages);
+            return;
+          }
+        }
+      } catch (err) {}
+    }
+
+    function renderCsrMessages(messages) {
+      const feed = document.getElementById('csrMessagesFeed');
+      if (messages.length === 0) {
+        feed.innerHTML = '<div class="text-center text-slate-500 py-16 text-xs">Simulan ang pag-uusap sa pamamagitan ng pag-reply sa form sa ibaba.</div>';
+        return;
+      }
+
+      feed.innerHTML = '';
+      messages.forEach(m => {
+        const isCs = m.sender === 'cs';
+        const msgEl = document.createElement('div');
+        msgEl.className = `flex flex-col ${isCs ? 'items-end' : 'items-start'} space-y-1`;
+        msgEl.innerHTML = `
+          <div class="flex items-center gap-1.5 text-[10px] text-slate-400 ${isCs ? 'flex-row-reverse' : ''}">
+            <span class="font-bold ${isCs ? 'text-amber-400' : 'text-slate-200'}">${m.senderName || (isCs ? 'Support Agent' : 'Player')}</span>
+            <span>·</span>
+            <span>${m.time || 'Ngayon'}</span>
+          </div>
+          <div class="p-3 rounded-2xl max-w-[80%] text-xs leading-relaxed ${
+            isCs
+              ? 'bg-amber-500 text-slate-950 font-medium rounded-br-none shadow-md shadow-amber-500/10'
+              : 'bg-slate-800 text-slate-100 border border-slate-700/80 rounded-bl-none'
+          }">
+            ${m.text}
+          </div>
+        `;
+        feed.appendChild(msgEl);
+      });
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    async function submitCsrReply(e) {
+      e.preventDefault();
+      if (!currentCsrSessionId) {
+        showToast('Pumili muna ng player conversation sa kaliwa.', 'error');
+        return;
+      }
+      const input = document.getElementById('csrReplyInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const btn = document.getElementById('csrReplyBtn');
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/chat/reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: currentCsrSessionId,
+            text,
+            csrName: `${currentAdminName} (${currentAdminRole.replace('_', ' ')})`
+          })
+        });
+
+        if (res.ok) {
+          input.value = '';
+          await loadCsrMessages(currentCsrSessionId);
+          loadCsrSessions();
+          showToast('Nai-send ang tugon sa player!', 'success');
+        } else {
+          showToast('Hindi naipadala ang tugon.', 'error');
+        }
+      } catch (err) {
+        showToast('Error sa pag-reply: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function insertCsrTemplate(txt) {
+      const input = document.getElementById('csrReplyInput');
+      input.value = txt;
+      input.focus();
+    }
+
+    // Auto-poll CSR chat messages every 3.5s when CSR tab is open
+    setInterval(() => {
+      const csrSection = document.getElementById('tabCSR');
+      if (csrSection && !csrSection.classList.contains('hidden') && currentCsrSessionId) {
+        loadCsrMessages(currentCsrSessionId);
+      }
+    }, 3500);
+
+    // ==========================================
+    // 9. PAYMONGO PAYMENT GATEWAY INTEGRATION
+    // ==========================================
+    async function loadPayMongoConfig() {
+      // Set current webhook URL
+      const currentOrigin = window.location.origin;
+      const whUrl = `${currentOrigin}/api/paymongo/webhook`;
+      const whEl = document.getElementById('pmWebhookUrl');
+      if (whEl) whEl.textContent = whUrl;
+
+      try {
+        const res = await fetch('/api/admin/paymongo/config');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.config) {
+            document.getElementById('pmIsEnabled').checked = !!data.config.isEnabled;
+            document.getElementById('pmPublicKey').value = data.config.publicKey || '';
+            document.getElementById('pmSecretKey').value = data.config.secretKey || '';
+            document.getElementById('pmWebhookSecret').value = data.config.webhookSecret || '';
+
+            const badge = document.getElementById('paymongoStatusBadge');
+            if (badge) {
+              if (data.config.isEnabled) {
+                badge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                badge.textContent = 'ACTIVE';
+              } else {
+                badge.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400';
+                badge.textContent = 'INACTIVE';
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function savePayMongoConfig(e) {
+      e.preventDefault();
+      const isEnabled = document.getElementById('pmIsEnabled').checked;
+      const publicKey = document.getElementById('pmPublicKey').value.trim();
+      const secretKey = document.getElementById('pmSecretKey').value.trim();
+      const webhookSecret = document.getElementById('pmWebhookSecret').value.trim();
+      const feedback = document.getElementById('pmFeedback');
+
+      try {
+        const res = await fetch('/api/admin/paymongo/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isEnabled, publicKey, secretKey, webhookSecret })
+        });
+        if (res.ok) {
+          if (feedback) {
+            feedback.className = 'text-xs p-3 rounded-xl bg-emerald-950 border border-emerald-500 text-emerald-300 block';
+            feedback.textContent = 'Matagumpay na na-save ang PayMongo Gateway settings! Ang automated deposit ay handa na.';
+          }
+          showToast('PayMongo Gateway settings successfully saved and active!', 'success');
+          loadPayMongoConfig();
+        } else {
+          showToast('Nabigong i-save ang PayMongo config.', 'error');
+        }
+      } catch (e) {
+        showToast('Error saving PayMongo: ' + e.message, 'error');
+      }
+    }
+
+    async function testPayMongoConnection() {
+      showToast('Testing connection sa PayMongo API...', 'info');
+      try {
+        const res = await fetch('/api/admin/paymongo/test-connection', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast('✅ Matagumpay na naka-konekta sa PayMongo API!', 'success');
+        } else {
+          showToast('❌ PayMongo Connection: ' + (data.message || 'Key verification failed.'), 'error');
+        }
+      } catch (e) {
+        showToast('Error testing connection: ' + e.message, 'error');
+      }
     }
   </script>
 </body>

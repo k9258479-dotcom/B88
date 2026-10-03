@@ -99,8 +99,10 @@ export const api = {
         if (userData.password && userData.password !== password) {
           return { success: false, message: 'Maling password. Pakisubukang muli.' };
         }
+        const playerId = userData.playerId || `ID-${cleanPhone.slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
         const loggedUser: UserProfile = {
           id: cleanPhone,
+          playerId,
           phone: cleanPhone,
           username: userData.username || `Player_${cleanPhone.slice(-4)}`,
           balance: userData.balance ?? 100,
@@ -111,6 +113,7 @@ export const api = {
           avatar: userData.avatar || '🎰',
           totalDeposited: userData.totalDeposited || 0,
           totalWithdrawn: userData.totalWithdrawn || 0,
+          registeredAt: userData.registeredAt || new Date().toISOString().split('T')[0],
         };
         setLocalItem('currentUser', loggedUser);
         return { success: true, message: 'Login successful!', user: loggedUser };
@@ -122,8 +125,10 @@ export const api = {
         if (localUsers[cleanPhone].password !== password) {
           return { success: false, message: 'Maling password.' };
         }
+        const playerId = localUsers[cleanPhone].playerId || `ID-${cleanPhone.slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
         const loggedUser: UserProfile = {
           ...localUsers[cleanPhone],
+          playerId,
           isLoggedIn: true,
         };
         setLocalItem('currentUser', loggedUser);
@@ -135,8 +140,10 @@ export const api = {
       // If Firestore network error, try local fallback
       const localUsers = getLocalItem<Record<string, any>>('registered_accounts', {});
       if (localUsers[cleanPhone] && localUsers[cleanPhone].password === password) {
+        const playerId = localUsers[cleanPhone].playerId || `ID-${cleanPhone.slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
         const loggedUser: UserProfile = {
           ...localUsers[cleanPhone],
+          playerId,
           isLoggedIn: true,
         };
         setLocalItem('currentUser', loggedUser);
@@ -156,8 +163,12 @@ export const api = {
       return { success: false, message: 'Kailangang hindi bababa sa 6 characters ang password.' };
     }
 
+    const playerId = `ID-${cleanPhone.slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
+    const regDate = new Date().toISOString().split('T')[0];
+
     const newUser: UserProfile = {
       id: cleanPhone,
+      playerId,
       phone: cleanPhone,
       username: `Player_${cleanPhone.slice(-4)}`,
       balance: 100, // ₱100 Welcome Free Credit Bonus
@@ -168,6 +179,7 @@ export const api = {
       avatar: '🎰',
       totalDeposited: 0,
       totalWithdrawn: 0,
+      registeredAt: regDate,
     };
 
     try {
@@ -178,7 +190,7 @@ export const api = {
         password,
         referralCode: promoCode || 'BET88VIP',
         createdAt: new Date().toISOString(),
-        registeredAt: new Date().toISOString().split('T')[0],
+        registeredAt: regDate,
       }, { merge: true });
 
       // Save initial welcome bonus transaction in transactions subcollection/collection
@@ -374,6 +386,10 @@ export const api = {
 
   // Withdraw Request
   async withdraw(amount: number, method: string, accountNumber: string, accountName: string): Promise<{ success: boolean; message: string; newBalance?: number; transaction?: Transaction }> {
+    if (amount < 200) {
+      return { success: false, message: 'Ang minimum withdrawal ay ₱200.00.' };
+    }
+
     const user = getLocalItem<UserProfile | null>('currentUser', null);
     if (!user || user.balance < amount) {
       return { success: false, message: 'Hindi sapat ang iyong balanse para mag-withdraw.' };

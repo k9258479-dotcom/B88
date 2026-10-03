@@ -1,26 +1,36 @@
 export interface Briefcase {
-  id: number; // 1 to 25
-  multiplier: number; // e.g. 0.1 to 1000
+  id: number; // 1 to 35
+  multiplier: number; // e.g. 0.2 to 1000
   isOpen: boolean;
   revealedOrder?: number;
 }
 
 export type GamePhase =
-  | 'PLAYING' // Player can select box(es) to open OR take the Banker's DEAL
-  | 'GAME_OVER'; // Outcome revealed (Accepted Deal or All Boxes Opened)
+  | 'PLAYING' // Player can select box(es) to open OR claim winnings
+  | 'GAME_OVER'; // Outcome revealed (Claimed or 6 Boxes Completed)
 
-// 25 Multipliers for 25 Briefcases: Exactly 6 HIGH, and the rest 0.1, 0.5, 10x
+// 35 Multipliers for 35 Briefcases:
+// 20 maleta na 0.3x
+// 10 maleta na 0.2x
+// 3 maleta na 10x
+// 1 maleta na 100x
+// 1 maleta na 1,000x
 export const BASE_MULTIPLIERS: number[] = [
-  // 6 High Multipliers
-  50, 100, 200, 300, 500, 1000,
-  // 19 Standard Multipliers (0.1, 0.5, 10x)
-  0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, // 7 of 0.1x
-  0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, // 7 of 0.5x
-  10, 10, 10, 10, 10,                 // 5 of 10x
+  // 20 maleta na 0.3x
+  0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3,
+  0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3,
+  // 10 maleta na 0.2x
+  0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2,
+  // 3 maleta na 10x
+  10, 10, 10,
+  // 1 maleta na 100x
+  100,
+  // 1 maleta na 1,000x
+  1000,
 ];
 
 export const PAYTABLE_MULTIPLIERS: number[] = [
-  0.1, 0.5, 10, 50, 100, 200, 300, 500, 1000,
+  0.2, 0.3, 10, 100, 1000,
 ];
 
 export interface ProvablyFairData {

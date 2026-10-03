@@ -1,5 +1,6 @@
 export interface UserProfile {
   id: string;
+  playerId?: string;
   phone: string;
   username: string;
   balance: number;
@@ -14,6 +15,7 @@ export interface UserProfile {
   totalWon?: number;
   totalLost?: number;
   totalSpins?: number;
+  registeredAt?: string;
 }
 
 export interface Transaction {
