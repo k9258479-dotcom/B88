@@ -31,32 +31,53 @@ export const LiveChatWidget: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Get or initialize persistent session ID (e.g. player mobile or session cookie)
-  const [sessionId] = useState(() => {
+  // Helper to dynamically get active session info
+  const getActiveSessionInfo = () => {
     try {
       const storedUser = localStorage.getItem('bet88_currentUser');
       if (storedUser) {
         const u = JSON.parse(storedUser);
-        if (u && u.phone) return u.phone;
+        if (u && u.phone) {
+          return {
+            sessionId: u.phone,
+            phone: u.phone,
+            playerName: u.username || `Player_${u.phone.slice(-4)}`
+          };
+        }
       }
-      let sid = sessionStorage.getItem('bet88_chat_sid');
-      if (!sid) {
-        sid = `session_${Math.floor(100000 + Math.random() * 900000)}`;
-        sessionStorage.setItem('bet88_chat_sid', sid);
-      }
-      return sid;
-    } catch {
-      return 'guest_player';
+    } catch {}
+
+    let sid = sessionStorage.getItem('bet88_chat_sid');
+    if (!sid) {
+      sid = `guest_${Math.floor(100000 + Math.random() * 900000)}`;
+      sessionStorage.setItem('bet88_chat_sid', sid);
     }
-  });
+    return {
+      sessionId: sid,
+      phone: '',
+      playerName: 'Guest Player'
+    };
+  };
+
+  const [activeSession, setActiveSession] = useState(getActiveSessionInfo);
+
+  // Sync session whenever chat widget is opened
+  useEffect(() => {
+    if (isOpen) {
+      setActiveSession(getActiveSessionInfo());
+    }
+  }, [isOpen]);
 
   // Poll backend for real-time CSR replies while chat window is open
   useEffect(() => {
     if (!isOpen) return;
 
+    const currentSession = getActiveSessionInfo();
+    setActiveSession(currentSession);
+
     const fetchMessages = async () => {
       try {
-        const res = await fetch(`/api/chat/messages?sessionId=${encodeURIComponent(sessionId)}`);
+        const res = await fetch(`/api/chat/messages?sessionId=${encodeURIComponent(currentSession.sessionId)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.success && Array.isArray(data.messages) && data.messages.length > 0) {
@@ -82,7 +103,7 @@ export const LiveChatWidget: React.FC = () => {
     fetchMessages();
     const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
-  }, [isOpen, sessionId]);
+  }, [isOpen]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -92,12 +113,15 @@ export const LiveChatWidget: React.FC = () => {
     const text = textToSend || inputText;
     if (!text.trim()) return;
 
+    const sessionInfo = getActiveSessionInfo();
+    setActiveSession(sessionInfo);
+
     sounds.playClick();
     const tempId = `temp_${Date.now()}`;
     const userMsg: ChatMessage = {
       id: tempId,
       sender: 'user',
-      senderName: 'You',
+      senderName: sessionInfo.playerName || 'You',
       text,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
@@ -107,22 +131,13 @@ export const LiveChatWidget: React.FC = () => {
 
     // 1. Post to backend Live Support API
     try {
-      let playerName = 'Player';
-      try {
-        const storedUser = localStorage.getItem('bet88_currentUser');
-        if (storedUser) {
-          const u = JSON.parse(storedUser);
-          if (u.username) playerName = u.username;
-        }
-      } catch {}
-
       await fetch('/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionId,
-          senderName: playerName,
-          phone: sessionId.startsWith('09') ? sessionId : '',
+          sessionId: sessionInfo.sessionId,
+          senderName: sessionInfo.playerName,
+          phone: sessionInfo.phone,
           text,
         }),
       });

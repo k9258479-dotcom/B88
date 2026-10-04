@@ -74,8 +74,9 @@ export const CashierModal: React.FC<CashierModalProps> = ({
         if (data.success && data.checkoutUrl) {
           setPaymongoCheckoutUrl(data.checkoutUrl);
           sounds.playCashout();
-          // Open PayMongo checkout in a new window or iframe
-          window.open(data.checkoutUrl, '_blank');
+          try {
+            window.open(data.checkoutUrl, '_blank');
+          } catch {}
           return;
         } else {
           setErrorMsg(data.message || 'Hindi ma-load ang PayMongo checkout. Subukan ang manual GCash/Maya.');
@@ -215,7 +216,34 @@ export const CashierModal: React.FC<CashierModalProps> = ({
           {/* DEPOSIT TAB */}
           {activeTab === 'deposit' && (
             <div>
-              {depositSuccessReceipt ? (
+              {paymongoCheckoutUrl ? (
+                <div className="text-center py-6 space-y-4 bg-slate-950/80 border border-purple-500/40 rounded-2xl p-6">
+                  <div className="w-14 h-14 bg-purple-500/20 text-purple-400 rounded-full flex items-center justify-center mx-auto text-2xl font-black shadow-lg shadow-purple-500/20">
+                    ⚡
+                  </div>
+                  <h3 className="text-lg font-bold text-white">PayMongo Checkout Ready!</h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Handa na ang iyong PayMongo deposit na ₱{depositAmount.toLocaleString()}. Pindutin ang button sa ibaba upang buksan ang gateway at kumpletuhin ang bayad.
+                  </p>
+                  <div className="flex flex-col gap-2.5 max-w-sm mx-auto pt-2">
+                    <a
+                      href={paymongoCheckoutUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="w-full py-3.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 text-white font-black text-xs uppercase tracking-wider rounded-xl hover:brightness-110 active:scale-95 shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2"
+                    >
+                      <span>Buksan ang PayMongo Gateway →</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setPaymongoCheckoutUrl(null)}
+                      className="py-2.5 text-xs text-slate-400 hover:text-white"
+                    >
+                      Bumalik sa Cashier Form
+                    </button>
+                  </div>
+                </div>
+              ) : depositSuccessReceipt ? (
                 <div className="text-center py-6 space-y-4">
                   <div className="w-14 h-14 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto">
                     <CheckCircle2 className="w-8 h-8" />

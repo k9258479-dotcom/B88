@@ -264,9 +264,9 @@ export default function App() {
 
       {/* When Game is Active: Direct Full Screen Game Experience */}
       {activeGame ? (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center overflow-hidden w-screen h-screen select-none animate-fadeIn">
+        <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-start overflow-y-auto w-screen h-screen select-none animate-fadeIn">
           {/* Top Floating Controls Bar */}
-          <header className="absolute top-2 left-2 right-2 sm:top-3 sm:left-4 sm:right-4 z-50 flex items-center justify-between pointer-events-none">
+          <header className="sticky top-2 left-2 right-2 sm:top-3 sm:left-4 sm:right-4 z-50 flex items-center justify-between w-[96%] max-w-4xl mx-auto my-1 pointer-events-none">
             <button
               onClick={handleCloseGame}
               className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-800 text-amber-400 hover:text-amber-300 border border-amber-500/40 text-xs font-bold shadow-2xl backdrop-blur-md transition-all active:scale-95"
@@ -290,7 +290,7 @@ export default function App() {
           </header>
 
           {/* Interactive Full Screen Game */}
-          <div className="w-full h-full flex items-center justify-center">
+          <div className="w-full min-h-full flex items-start justify-center pb-12 overflow-y-auto">
             {activeGame.id === 'game_deal_or_no_deal' ? (
               <DealOrNoDealGame
                 userBalance={user.balance}

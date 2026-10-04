@@ -163,6 +163,49 @@ export const api = {
       return { success: false, message: 'Kailangang hindi bababa sa 6 characters ang password.' };
     }
 
+    // 1. DUPLICATE CHECK: Verify if mobile number is already registered in LocalStorage
+    const localUsers = getLocalItem<Record<string, any>>('registered_accounts', {});
+    if (localUsers[cleanPhone]) {
+      return {
+        success: false,
+        message: 'Ang numero na ito ay nakarehistro na sa sistema ng Bet88. Mangyaring mag-log in na lamang.',
+      };
+    }
+
+    // 2. DUPLICATE CHECK: Verify if mobile number is already registered in Firestore
+    try {
+      const userDocRef = doc(db, 'users', cleanPhone);
+      const existingSnap = await getDoc(userDocRef);
+      if (existingSnap.exists()) {
+        return {
+          success: false,
+          message: 'Ang numero na ito ay nakarehistro na sa sistema ng Bet88. Mangyaring mag-log in na lamang.',
+        };
+      }
+    } catch (err) {
+      console.warn('Firestore duplicate check error, checking backend...', err);
+    }
+
+    // 3. DUPLICATE CHECK: Check with Express Backend API
+    try {
+      const backendRes = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanPhone, password, promoCode }),
+      });
+      const backendData = await backendRes.json().catch(() => ({}));
+      if (!backendRes.ok || (backendData && backendData.success === false)) {
+        if (backendData.message && backendData.message.toLowerCase().includes('already registered')) {
+          return {
+            success: false,
+            message: 'Ang numero na ito ay nakarehistro na sa sistema ng Bet88. Mangyaring mag-log in na lamang.',
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Backend API registration call skipped or offline:', e);
+    }
+
     const playerId = `ID-${cleanPhone.slice(-4)}${Math.floor(10 + Math.random() * 90)}`;
     const regDate = new Date().toISOString().split('T')[0];
 
@@ -212,7 +255,6 @@ export const api = {
     }
 
     // 2. Always persist to localStorage for instant reliability & offline backup
-    const localUsers = getLocalItem<Record<string, any>>('registered_accounts', {});
     localUsers[cleanPhone] = { ...newUser, password, referralCode: promoCode || 'BET88VIP' };
     setLocalItem('registered_accounts', localUsers);
     setLocalItem('currentUser', newUser);

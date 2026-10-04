@@ -214,8 +214,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           )}
 
           {errorMsg && (
-            <div className="p-3 bg-red-950/60 border border-red-500 text-red-300 text-xs rounded-xl">
-              {errorMsg}
+            <div className="p-3 bg-red-950/60 border border-red-500 text-red-300 text-xs rounded-xl flex flex-col gap-2">
+              <span>{errorMsg}</span>
+              {mode === 'register' && errorMsg.includes('nakarehistro') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playClick();
+                    setMode('login');
+                    setErrorMsg(null);
+                  }}
+                  className="self-start px-3 py-1 bg-amber-500 text-slate-950 font-bold rounded-lg hover:bg-amber-400 active:scale-95 transition-all text-[11px]"
+                >
+                  Pindutin dito para Mag-Log In →
+                </button>
+              )}
             </div>
           )}
 

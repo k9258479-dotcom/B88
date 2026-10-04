@@ -363,9 +363,9 @@ export function DealOrNoDealGame({
   }, [totalWon]);
 
   return (
-    <div className="bg-[#050102] text-white min-h-screen flex justify-center items-center overflow-x-hidden select-none font-sans antialiased">
-      {/* Mobile iOS Frame Wrapper (390px - 430px optimal) */}
-      <main className="relative w-full max-w-[430px] h-[100dvh] max-h-[932px] bg-[#0c0406] flex flex-col justify-between overflow-hidden shadow-2xl border-x border-[#3b1d11]">
+    <div className="bg-[#050102] text-white min-h-screen w-full flex justify-center items-start overflow-y-auto overflow-x-hidden select-none font-sans antialiased">
+      {/* Mobile iOS Frame Wrapper (390px - 430px optimal) with smooth vertical scrolling */}
+      <main className="relative w-full max-w-[440px] min-h-screen bg-[#0c0406] flex flex-col justify-between overflow-y-auto shadow-2xl border-x border-[#3b1d11] pb-20">
         {/* AAA Professional Stage Background */}
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
           <img

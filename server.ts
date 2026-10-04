@@ -163,6 +163,12 @@ export interface GameWinRateConfig {
   updatedAt: string;
 }
 
+const WIN_RATES_FILES = [
+  path.join(__dirname, 'game_win_rates.json'),
+  path.join(process.cwd(), 'game_win_rates.json'),
+  '/tmp/game_win_rates.json'
+];
+
 let gameWinRates: Record<string, GameWinRateConfig> = {
   super_ace: {
     gameId: 'super_ace',
@@ -188,7 +194,149 @@ let gameWinRates: Record<string, GameWinRateConfig> = {
     rigMode: 'BALANCED',
     updatedAt: new Date().toISOString(),
   },
+  color_game: {
+    gameId: 'color_game',
+    gameName: 'Color Game (Perya Live)',
+    provider: 'BET88 LIVE',
+    category: 'table',
+    winRate: 96.8,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 5,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  diamond_mines: {
+    gameId: 'diamond_mines',
+    gameName: 'Diamond Mines',
+    provider: 'BET88 ORIGINALS',
+    category: 'arcade',
+    winRate: 97.4,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 6,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  crash_game: {
+    gameId: 'crash_game',
+    gameName: 'Aviator / Crash Rocket',
+    provider: 'SPRIBE',
+    category: 'crash',
+    winRate: 97.0,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 0,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  slot_machine: {
+    gameId: 'slot_machine',
+    gameName: 'Golden Empire 777 Slot',
+    provider: 'JILI',
+    category: 'slots',
+    winRate: 96.5,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 7,
+    freeSpinRate: 2.5,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  mega_fishing: {
+    gameId: 'mega_fishing',
+    gameName: 'Mega Fishing Ocean',
+    provider: 'JDB',
+    category: 'fishing',
+    winRate: 97.2,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 8,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  tongits: {
+    gameId: 'tongits',
+    gameName: 'Tongits Plus Card Game',
+    provider: 'BET88 ORIGINALS',
+    category: 'table',
+    winRate: 96.0,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 5,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  baccarat_live: {
+    gameId: 'baccarat_live',
+    gameName: 'Live Sexy Baccarat',
+    provider: 'EVOLUTION',
+    category: 'live',
+    winRate: 98.9,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 0,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  roulette_vip: {
+    gameId: 'roulette_vip',
+    gameName: 'Lightning Roulette VIP',
+    provider: 'EVOLUTION',
+    category: 'live',
+    winRate: 97.3,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 4,
+    freeSpinRate: 0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  boxing_king: {
+    gameId: 'boxing_king',
+    gameName: 'Boxing King Slot',
+    provider: 'JILI',
+    category: 'slots',
+    winRate: 97.1,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 9,
+    freeSpinRate: 3.5,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
+  fortune_gems: {
+    gameId: 'fortune_gems',
+    gameName: 'Fortune Gems 2',
+    provider: 'JILI',
+    category: 'slots',
+    winRate: 97.5,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 8,
+    freeSpinRate: 3.0,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  },
 };
+
+// Load saved win rates from disk
+for (const file of WIN_RATES_FILES) {
+  try {
+    if (fs.existsSync(file)) {
+      const saved = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      if (saved && typeof saved === 'object') {
+        gameWinRates = { ...gameWinRates, ...saved };
+        break;
+      }
+    }
+  } catch (e) {}
+}
+
+function saveWinRatesToFile() {
+  for (const file of WIN_RATES_FILES) {
+    try {
+      fs.writeFileSync(file, JSON.stringify(gameWinRates, null, 2), 'utf-8');
+      break;
+    } catch (e) {}
+  }
+}
 
 // Helper: Format PHP
 const round2 = (num: number) => Math.round(num * 100) / 100;
@@ -1393,7 +1541,12 @@ app.post('/api/admin/transactions/delete', (req, res) => {
 // ----------------------------------------------------
 // PAYMONGO PAYMENT GATEWAY INTEGRATION
 // ----------------------------------------------------
-const PAYMONGO_FILE = path.join(__dirname, 'paymongo_config.json');
+const PAYMONGO_FILES = [
+  path.join(__dirname, 'paymongo_config.json'),
+  path.join(process.cwd(), 'paymongo_config.json'),
+  '/tmp/paymongo_config.json',
+];
+
 interface PaymongoConfig {
   isEnabled: boolean;
   publicKey: string;
@@ -1408,11 +1561,26 @@ let paymongoConfig: PaymongoConfig = {
   webhookSecret: '',
 };
 
-try {
-  if (fs.existsSync(PAYMONGO_FILE)) {
-    paymongoConfig = { ...paymongoConfig, ...JSON.parse(fs.readFileSync(PAYMONGO_FILE, 'utf-8')) };
+for (const f of PAYMONGO_FILES) {
+  try {
+    if (fs.existsSync(f)) {
+      const saved = JSON.parse(fs.readFileSync(f, 'utf-8'));
+      if (saved && typeof saved === 'object') {
+        paymongoConfig = { ...paymongoConfig, ...saved };
+        break;
+      }
+    }
+  } catch (e) {}
+}
+
+function savePayMongoConfigToFile() {
+  for (const f of PAYMONGO_FILES) {
+    try {
+      fs.writeFileSync(f, JSON.stringify(paymongoConfig, null, 2), 'utf-8');
+      break;
+    } catch (e) {}
   }
-} catch (e) {}
+}
 
 app.get('/api/admin/paymongo/config', (req, res) => {
   res.json({
@@ -1421,8 +1589,9 @@ app.get('/api/admin/paymongo/config', (req, res) => {
       isEnabled: paymongoConfig.isEnabled,
       publicKey: paymongoConfig.publicKey,
       secretKey: paymongoConfig.secretKey ? `${paymongoConfig.secretKey.slice(0, 7)}...${paymongoConfig.secretKey.slice(-4)}` : '',
+      rawSecretKey: paymongoConfig.secretKey, // Included for secure admin configuration edit
       hasSecretKey: !!paymongoConfig.secretKey,
-      webhookSecret: paymongoConfig.webhookSecret ? '••••••••' : '',
+      webhookSecret: paymongoConfig.webhookSecret,
     },
   });
 });
@@ -1434,13 +1603,11 @@ app.post('/api/admin/paymongo/config', (req, res) => {
   if (secretKey && !secretKey.includes('...')) paymongoConfig.secretKey = secretKey.trim();
   if (webhookSecret && !webhookSecret.includes('•')) paymongoConfig.webhookSecret = webhookSecret.trim();
 
-  try {
-    fs.writeFileSync(PAYMONGO_FILE, JSON.stringify(paymongoConfig, null, 2), 'utf-8');
-  } catch (e) {}
+  savePayMongoConfigToFile();
 
   res.json({
     success: true,
-    message: 'PayMongo gateway configuration successfully saved and active!',
+    message: 'Matagumpay na na-save ang PayMongo gateway settings!',
     config: {
       isEnabled: paymongoConfig.isEnabled,
       publicKey: paymongoConfig.publicKey,
@@ -1451,12 +1618,13 @@ app.post('/api/admin/paymongo/config', (req, res) => {
 
 app.post('/api/admin/paymongo/test-connection', async (req, res) => {
   if (!paymongoConfig.secretKey) {
-    return res.status(400).json({ success: false, message: 'No PayMongo Secret Key configured (e.g. sk_live_... o sk_test_...).' });
+    return res.status(400).json({ success: false, message: 'Wala pang PayMongo Secret Key na nai-save. I-save muna ang iyong Secret Key (e.g. sk_live_... o sk_test_...).' });
   }
 
   try {
     const authHeader = 'Basic ' + Buffer.from(paymongoConfig.secretKey + ':').toString('base64');
-    const apiRes = await fetch('https://api.paymongo.com/v1/links?limit=1', {
+    // Test API credentials using PayMongo API
+    const apiRes = await fetch('https://api.paymongo.com/v1/checkout_sessions?limit=1', {
       headers: {
         'Authorization': authHeader,
         'Accept': 'application/json',
@@ -1464,10 +1632,11 @@ app.post('/api/admin/paymongo/test-connection', async (req, res) => {
     });
 
     if (apiRes.ok) {
-      return res.json({ success: true, message: 'PayMongo API connected successfully! API credentials are valid.' });
+      return res.json({ success: true, message: 'Matagumpay na naka-konekta sa PayMongo API! Valid at handa nang mag-process ng deposits.' });
     } else {
       const errData: any = await apiRes.json().catch(() => ({}));
-      return res.status(400).json({ success: false, message: 'PayMongo error: ' + JSON.stringify(errData.errors || errData) });
+      const detail = errData.errors?.[0]?.detail || errData.message || (apiRes.status === 401 ? 'Maling Secret Key. Pakisuri ang sk_live_ o sk_test_ key sa PayMongo dashboard.' : 'Hindi makakonekta');
+      return res.status(400).json({ success: false, message: 'PayMongo API error: ' + detail });
     }
   } catch (err: any) {
     return res.status(500).json({ success: false, message: 'Connection test failed: ' + err.message });
@@ -1505,7 +1674,7 @@ app.post('/api/paymongo/create-checkout', async (req, res) => {
               send_email_receipt: false,
               show_description: true,
               show_line_items: true,
-              payment_method_types: ['gcash', 'paymaya', 'card', 'dob'],
+              payment_method_types: ['gcash', 'paymaya', 'card'],
               line_items: [
                 {
                   currency: 'PHP',
@@ -1611,6 +1780,12 @@ export interface LiveChatMessage {
   timestamp: number;
 }
 
+const CHAT_FILES = [
+  path.join(__dirname, 'chat_messages.json'),
+  path.join(process.cwd(), 'chat_messages.json'),
+  '/tmp/chat_messages.json',
+];
+
 let liveChatMessages: LiveChatMessage[] = [
   {
     id: 'msg_welcome_sample',
@@ -1634,6 +1809,28 @@ let liveChatMessages: LiveChatMessage[] = [
   }
 ];
 
+// Load chat messages from file
+for (const f of CHAT_FILES) {
+  try {
+    if (fs.existsSync(f)) {
+      const saved = JSON.parse(fs.readFileSync(f, 'utf-8'));
+      if (Array.isArray(saved) && saved.length > 0) {
+        liveChatMessages = saved;
+        break;
+      }
+    }
+  } catch (e) {}
+}
+
+function saveChatMessagesToFile() {
+  for (const f of CHAT_FILES) {
+    try {
+      fs.writeFileSync(f, JSON.stringify(liveChatMessages, null, 2), 'utf-8');
+      break;
+    } catch (e) {}
+  }
+}
+
 // List chat sessions with latest message for CSR dashboard
 app.get('/api/chat/sessions', (req, res) => {
   const sessionMap = new Map<string, {
@@ -1647,18 +1844,33 @@ app.get('/api/chat/sessions', (req, res) => {
   }>();
 
   liveChatMessages.forEach(m => {
-    const existing = sessionMap.get(m.sessionId);
     const isUser = m.sender === 'user';
-    if (!existing || m.timestamp > existing.timestamp) {
+    const existing = sessionMap.get(m.sessionId);
+    if (!existing) {
       sessionMap.set(m.sessionId, {
         sessionId: m.sessionId,
         phone: m.phone || (m.sessionId.startsWith('09') ? m.sessionId : '09xxxxxxxxx'),
-        playerName: m.sender === 'user' ? m.senderName : (existing?.playerName || 'Player'),
+        playerName: m.sender === 'user' ? m.senderName : 'Player',
         lastMessage: m.text,
         lastTime: m.time,
         timestamp: m.timestamp,
-        unreadCount: (existing?.unreadCount || 0) + (isUser ? 1 : 0),
+        unreadCount: isUser ? 1 : 0,
       });
+    } else {
+      if (m.timestamp > existing.timestamp) {
+        existing.lastMessage = m.text;
+        existing.lastTime = m.time;
+        existing.timestamp = m.timestamp;
+      }
+      if (m.phone && (!existing.phone || existing.phone.includes('x'))) {
+        existing.phone = m.phone;
+      }
+      if (m.sender === 'user' && m.senderName && m.senderName !== 'Player') {
+        existing.playerName = m.senderName;
+      }
+      if (isUser) {
+        existing.unreadCount = (existing.unreadCount || 0) + 1;
+      }
     }
   });
 
@@ -1672,7 +1884,9 @@ app.get('/api/chat/messages', (req, res) => {
   if (!sessionId) {
     return res.json({ success: true, messages: liveChatMessages });
   }
-  const msgs = liveChatMessages.filter(m => m.sessionId === sessionId);
+  const msgs = liveChatMessages.filter(
+    m => m.sessionId === sessionId || (m.phone && m.phone === sessionId)
+  );
   res.json({ success: true, messages: msgs });
 });
 
@@ -1681,19 +1895,23 @@ app.post('/api/chat/send', (req, res) => {
   const { sessionId, senderName, phone, text } = req.body;
   if (!text || !text.trim()) return res.status(400).json({ success: false, message: 'Message text required' });
 
-  const sid = (sessionId || phone || 'guest_session').trim();
+  const resolvedPhone = phone || (sessionId && sessionId.startsWith('09') ? sessionId : '');
+  const sid = (resolvedPhone || sessionId || 'guest_session').trim();
+  const resolvedName = senderName || (resolvedPhone ? `Player_${resolvedPhone.slice(-4)}` : 'Player');
+
   const newMsg: LiveChatMessage = {
     id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     sessionId: sid,
     sender: 'user',
-    senderName: senderName || 'Player',
-    phone: phone || '',
+    senderName: resolvedName,
+    phone: resolvedPhone,
     text: text.trim(),
     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     timestamp: Date.now(),
   };
 
   liveChatMessages.push(newMsg);
+  saveChatMessagesToFile();
   res.json({ success: true, message: newMsg });
 });
 
@@ -1715,6 +1933,7 @@ app.post('/api/chat/reply', (req, res) => {
   };
 
   liveChatMessages.push(replyMsg);
+  saveChatMessagesToFile();
   res.json({ success: true, message: replyMsg });
 });
 
@@ -1900,6 +2119,8 @@ app.post('/api/admin/win-rates/update', (req, res) => {
     rigMode: newRigMode,
     updatedAt: new Date().toISOString(),
   };
+
+  saveWinRatesToFile();
 
   res.json({
     success: true,

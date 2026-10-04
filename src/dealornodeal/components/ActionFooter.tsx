@@ -37,25 +37,29 @@ export const ActionFooter: React.FC<ActionFooterProps> = ({
       <div className="grid grid-cols-2 gap-3" data-purpose="decision-controls">
         {phase === 'PLAYING' && (
           <>
-            {/* CLAIM BUTTON */}
+            {/* CLAIM BUTTON (GREEN) */}
             <button
+              type="button"
               onClick={onClaim}
               disabled={isOpeningBatch}
-              className="btn-3d-deal rounded-2xl py-3.5 px-3 text-center flex items-center justify-center cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
+              className="w-full rounded-2xl py-3.5 px-3 text-center flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-b from-green-500 via-green-600 to-green-700 hover:from-green-400 hover:to-green-600 active:from-green-700 active:to-green-800 border-2 border-green-300 shadow-[0_6px_20px_rgba(34,197,94,0.6),inset_0_1px_2px_rgba(255,255,255,0.6)] hover:brightness-110 active:translate-y-0.5"
             >
-              <span className="text-white text-lg font-black tracking-wider uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-sans">
-                Claim
+              <span className="text-white text-base sm:text-lg font-black tracking-wider uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-sans flex items-center gap-1.5">
+                <span className="text-xl">💰</span>
+                <span>{totalWon > 0 ? `CLAIM ₱${totalWon.toLocaleString()}` : 'CLAIM'}</span>
               </span>
             </button>
 
-            {/* OPEN BOX BUTTON */}
+            {/* OPEN BOX BUTTON (RED) */}
             <button
+              type="button"
               onClick={onOpenBox}
               disabled={isOpeningBatch}
-              className="btn-3d-nodeal rounded-2xl py-3.5 px-3 text-center flex items-center justify-center cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg"
+              className="w-full rounded-2xl py-3.5 px-3 text-center flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-b from-red-500 via-red-600 to-red-700 hover:from-red-400 hover:to-red-600 active:from-red-700 active:to-red-800 border-2 border-red-300 shadow-[0_6px_20px_rgba(239,68,68,0.6),inset_0_1px_2px_rgba(255,255,255,0.6)] hover:brightness-110 active:translate-y-0.5"
             >
-              <span className="text-white text-lg font-black tracking-wider uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-sans">
-                Open Box
+              <span className="text-white text-base sm:text-lg font-black tracking-wider uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] font-sans flex items-center gap-1.5">
+                <span className="text-xl">📦</span>
+                <span>{selectedCount > 0 ? `OPEN (${selectedCount})` : 'OPEN BOX'}</span>
               </span>
             </button>
           </>
