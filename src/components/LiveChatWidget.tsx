@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MessageSquare, X, Send, Bot, ShieldCheck } from 'lucide-react';
 import { sounds } from '../utils/audio';
+import { db } from '../firebase';
+import { doc, setDoc, collection } from 'firebase/firestore';
 
 interface ChatMessage {
   id: string;
@@ -142,6 +144,32 @@ export const LiveChatWidget: React.FC = () => {
         }),
       });
     } catch (e) {}
+
+    // 2. Also save to Firestore for resilient multi-device sync
+    try {
+      const msgDocId = `msg_${Date.now()}`;
+      await setDoc(doc(db, 'csr_messages', msgDocId), {
+        id: msgDocId,
+        sessionId: sessionInfo.sessionId,
+        phone: sessionInfo.phone || sessionInfo.sessionId,
+        sender: 'user',
+        senderName: sessionInfo.playerName || 'Player',
+        text,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: Date.now(),
+        createdAt: new Date().toISOString(),
+      });
+
+      await setDoc(doc(db, 'csr_sessions', sessionInfo.sessionId), {
+        sessionId: sessionInfo.sessionId,
+        phone: sessionInfo.phone || sessionInfo.sessionId,
+        playerName: sessionInfo.playerName || 'Player',
+        lastMessage: text,
+        lastTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        timestamp: Date.now(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    } catch (err) {}
 
     // 2. Instant helpful quick response for known FAQs if CSR hasn't replied yet
     const lower = text.toLowerCase();

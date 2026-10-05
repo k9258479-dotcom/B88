@@ -40,7 +40,7 @@ export type GameCategory = 'all' | 'slots' | 'live' | 'crash' | 'perya' | 'table
 export interface GameItem {
   id: string;
   title: string;
-  provider: 'JILI' | 'PG Soft' | 'Pragmatic Play' | 'Fa Chai' | 'Spribe' | 'Evolution' | 'Perya' | 'BET88 ORIGINALS';
+  provider: 'JILI' | 'PG Soft' | 'Pragmatic Play' | 'Fa Chai' | 'Spribe' | 'Evolution' | 'Perya' | 'BET88 ORIGINALS' | 'JDB' | 'BET88 LIVE' | string;
   category: GameCategory;
   rtp: string;
   image: string;

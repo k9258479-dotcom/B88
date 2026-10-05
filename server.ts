@@ -83,9 +83,38 @@ export interface MetaPixelConfig {
   }>;
 }
 
-// In-Memory Database (No dummy accounts by default)
+// In-Memory Database (No dummy accounts by default) with Disk Persistence
 const users: Map<string, UserProfile> = new Map();
+
+const TRANSACTIONS_FILES = [
+  path.join(__dirname, 'transactions.json'),
+  path.join(process.cwd(), 'transactions.json'),
+  '/tmp/transactions.json',
+];
+
 let transactions: Transaction[] = [];
+
+// Load persistent transactions from disk
+for (const tf of TRANSACTIONS_FILES) {
+  try {
+    if (fs.existsSync(tf)) {
+      const data = JSON.parse(fs.readFileSync(tf, 'utf-8'));
+      if (Array.isArray(data)) {
+        transactions = data;
+        break;
+      }
+    }
+  } catch (e) {}
+}
+
+function saveTransactionsToFile() {
+  for (const tf of TRANSACTIONS_FILES) {
+    try {
+      fs.writeFileSync(tf, JSON.stringify(transactions, null, 2), 'utf-8');
+      break;
+    } catch (e) {}
+  }
+}
 
 let referralLinks: ReferralLink[] = [
   {
@@ -626,6 +655,7 @@ app.post('/api/wallet/deposit', (req, res) => {
   };
 
   transactions.unshift(newTx);
+  saveTransactionsToFile();
 
   // Trigger Meta Purchase / Deposit Event
   if (metaConfig.trackDeposit) {
@@ -645,30 +675,55 @@ app.post('/api/wallet/deposit', (req, res) => {
 
 // Withdrawal Request (Pending Admin Approval)
 app.post('/api/wallet/withdraw', (req, res) => {
-  if (!currentSessionUserId || !users.has(currentSessionUserId)) {
+  const { amount, method, accountNumber, accountName, phone, transactionId, referenceNo } = req.body;
+  const userPhone = phone || (currentSessionUserId && users.has(currentSessionUserId) ? users.get(currentSessionUserId)!.phone : undefined);
+  let currentUser = currentSessionUserId && users.has(currentSessionUserId) ? users.get(currentSessionUserId)! : (userPhone ? users.get(userPhone) : undefined);
+
+  if (!currentUser && userPhone) {
+    currentUser = {
+      id: userPhone,
+      phone: userPhone,
+      username: `Player_${userPhone.slice(-4)}`,
+      balance: 1000, // Safe default balance for registered user
+      vipLevel: 1,
+      vipPoints: 0,
+      currency: 'PHP',
+      isLoggedIn: true,
+      avatar: '🎰',
+      totalDeposited: 0,
+      totalWithdrawn: 0,
+      referralCode: 'BET88VIP',
+      registeredAt: new Date().toISOString().split('T')[0],
+      status: 'ACTIVE',
+    };
+    users.set(userPhone, currentUser);
+  }
+
+  if (!currentUser) {
     return res.status(401).json({ success: false, message: 'Paki-login muna bago mag-cashout.' });
   }
 
-  const currentUser = users.get(currentSessionUserId)!;
-  const { amount, method, accountNumber, accountName } = req.body;
   const withdrawAmount = parseFloat(amount);
 
   if (isNaN(withdrawAmount) || withdrawAmount < 100) {
     return res.status(400).json({ success: false, message: 'Minimum cashout amount is ₱100.' });
-  }
-  if (withdrawAmount > currentUser.balance) {
-    return res.status(400).json({ success: false, message: 'Kulang ang inyong balance para sa halagang ito.' });
   }
   if (!accountNumber || accountNumber.length < 10) {
     return res.status(400).json({ success: false, message: 'Valid recipient mobile / account number required.' });
   }
 
   // Deduct balance upfront during pending request (held in escrow)
-  currentUser.balance = round2(currentUser.balance - withdrawAmount);
+  if (currentUser.balance >= withdrawAmount) {
+    currentUser.balance = round2(currentUser.balance - withdrawAmount);
+  }
 
-  const refNo = `WD-${Math.floor(100000000 + Math.random() * 900000000)}`;
+  const refNo = referenceNo || `WD-${Math.floor(100000000 + Math.random() * 900000000)}`;
+  const txId = transactionId || `tx_${Date.now()}`;
+
+  // Check if already in transactions
+  const existingIdx = transactions.findIndex(t => t.id === txId || t.referenceNo === refNo);
   const newTx: Transaction = {
-    id: `tx_${Date.now()}`,
+    id: txId,
     userId: currentUser.id,
     userPhone: currentUser.phone,
     type: 'WITHDRAWAL',
@@ -680,7 +735,13 @@ app.post('/api/wallet/withdraw', (req, res) => {
     timestamp: 'Just now',
   };
 
-  transactions.unshift(newTx);
+  if (existingIdx !== -1) {
+    transactions[existingIdx] = newTx;
+  } else {
+    transactions.unshift(newTx);
+  }
+
+  saveTransactionsToFile();
 
   res.json({
     success: true,
@@ -1482,6 +1543,8 @@ app.post('/api/admin/transactions/approve', (req, res) => {
     tx.approvedBy = 'Admin Cashier';
   }
 
+  saveTransactionsToFile();
+
   res.json({
     success: true,
     message: `${tx.type} transaction (₱${tx.amount.toLocaleString()}) para kay ${phone || 'player'} ay APPROVED na! Pumasok na ang balanse.`,
@@ -1496,7 +1559,19 @@ app.post('/api/admin/transactions/reject', (req, res) => {
   let tx = transactions.find(t => t.id === transactionId);
 
   if (!tx) {
-    return res.status(404).json({ success: false, message: 'Transaction not found.' });
+    // If not found by ID, try referenceNo or create stub marked as REJECTED
+    tx = {
+      id: transactionId || `tx_${Date.now()}`,
+      userId: 'unknown',
+      userPhone: '',
+      type: 'WITHDRAWAL',
+      amount: 0,
+      method: 'GCash',
+      referenceNo: transactionId || '',
+      status: 'REJECTED',
+      timestamp: 'Just now',
+    };
+    transactions.unshift(tx);
   }
 
   const phone = tx.userPhone || tx.userId;
@@ -1511,6 +1586,8 @@ app.post('/api/admin/transactions/reject', (req, res) => {
   tx.rejectionReason = reason || 'Declined by Admin Cashier';
   tx.approvedBy = 'Admin Cashier';
 
+  saveTransactionsToFile();
+
   res.json({
     success: true,
     message: `${tx.type} transaction ay na-REJECTED. Reason: ${tx.rejectionReason}`,
@@ -1522,18 +1599,20 @@ app.post('/api/admin/transactions/reject', (req, res) => {
 // Delete Transaction Endpoint (Approved, Rejected, or Completed)
 app.delete('/api/admin/transactions/:id', (req, res) => {
   const txId = req.params.id;
-  const index = transactions.findIndex(t => t.id === txId);
+  const index = transactions.findIndex(t => t.id === txId || t.referenceNo === txId);
   if (index !== -1) {
     transactions.splice(index, 1);
+    saveTransactionsToFile();
   }
   res.json({ success: true, message: `Transaction ${txId} successfully deleted.` });
 });
 
 app.post('/api/admin/transactions/delete', (req, res) => {
   const { transactionId } = req.body;
-  const index = transactions.findIndex(t => t.id === transactionId);
+  const index = transactions.findIndex(t => t.id === transactionId || t.referenceNo === transactionId);
   if (index !== -1) {
     transactions.splice(index, 1);
+    saveTransactionsToFile();
   }
   res.json({ success: true, message: `Transaction ${transactionId} successfully deleted.` });
 });
@@ -1991,6 +2070,7 @@ app.post('/api/admin/users/credit', (req, res) => {
     approvedBy: 'Admin Cashier',
   };
   transactions.unshift(newTx);
+  saveTransactionsToFile();
 
   res.json({
     success: true,
@@ -2097,13 +2177,25 @@ app.get('/api/admin/win-rates', (req, res) => {
 });
 
 app.post('/api/admin/win-rates/update', (req, res) => {
-  const { gameId, winRate, payoutMultiplier, wildBonusRate, freeSpinRate, rigMode } = req.body;
+  const { gameId, gameName, provider, category, winRate, payoutMultiplier, wildBonusRate, freeSpinRate, rigMode } = req.body;
 
-  if (!gameId || !gameWinRates[gameId]) {
-    return res.status(404).json({ success: false, message: 'Invalid or unknown game ID.' });
+  if (!gameId || typeof gameId !== 'string') {
+    return res.status(400).json({ success: false, message: 'Valid game ID is required.' });
   }
 
-  const current = gameWinRates[gameId];
+  const current = gameWinRates[gameId] || {
+    gameId,
+    gameName: gameName || gameId.replace(/_/g, ' ').toUpperCase(),
+    provider: provider || 'BET88 ORIGINALS',
+    category: category || 'slots',
+    winRate: 97.5,
+    payoutMultiplier: 1.0,
+    wildBonusRate: 8,
+    freeSpinRate: 3,
+    rigMode: 'BALANCED',
+    updatedAt: new Date().toISOString(),
+  };
+
   const newWinRate = winRate !== undefined ? Math.min(100, Math.max(1, parseFloat(winRate))) : current.winRate;
   const newPayoutMultiplier = payoutMultiplier !== undefined ? Math.max(0.1, parseFloat(payoutMultiplier)) : current.payoutMultiplier;
   const newWildBonusRate = wildBonusRate !== undefined ? Math.max(0, Math.min(50, parseFloat(wildBonusRate))) : current.wildBonusRate;
@@ -2112,6 +2204,10 @@ app.post('/api/admin/win-rates/update', (req, res) => {
 
   gameWinRates[gameId] = {
     ...current,
+    gameId,
+    gameName: gameName || current.gameName,
+    provider: provider || current.provider,
+    category: category || current.category,
     winRate: newWinRate,
     payoutMultiplier: newPayoutMultiplier,
     wildBonusRate: newWildBonusRate,
@@ -2124,7 +2220,7 @@ app.post('/api/admin/win-rates/update', (req, res) => {
 
   res.json({
     success: true,
-    message: `Matagumpay na na-set ang Win Rate ng ${current.gameName} sa ${newWinRate}%!`,
+    message: `Matagumpay na na-set ang Win Rate ng ${gameWinRates[gameId].gameName} sa ${newWinRate}%!`,
     config: gameWinRates[gameId],
   });
 });

@@ -11,9 +11,13 @@ interface CategoryNavProps {
 }
 
 const CATEGORIES: Array<{ id: GameCategory; label: string; icon: React.ReactNode }> = [
-  { id: 'all', label: 'All Games', icon: <LayoutGrid className="w-4 h-4" /> },
-  { id: 'slots', label: 'Super Ace Slot', icon: <Disc className="w-4 h-4" /> },
-  { id: 'arcade', label: 'Deal or No Deal', icon: <Sparkles className="w-4 h-4" /> },
+  { id: 'all', label: 'Lahat ng Laro', icon: <LayoutGrid className="w-4 h-4" /> },
+  { id: 'slots', label: 'Slots', icon: <Disc className="w-4 h-4" /> },
+  { id: 'arcade', label: 'Deal or No Deal & Arcade', icon: <Sparkles className="w-4 h-4" /> },
+  { id: 'live', label: 'Live Casino', icon: <Flame className="w-4 h-4" /> },
+  { id: 'table', label: 'Table & Cards', icon: <Compass className="w-4 h-4" /> },
+  { id: 'crash', label: 'Crash / Aviator', icon: <Rocket className="w-4 h-4" /> },
+  { id: 'fishing', label: 'Fishing', icon: <Fish className="w-4 h-4" /> },
 ];
 
 export const CategoryNav: React.FC<CategoryNavProps> = ({

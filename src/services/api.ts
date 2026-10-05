@@ -237,8 +237,9 @@ export const api = {
       }, { merge: true });
 
       // Save initial welcome bonus transaction in transactions subcollection/collection
-      await addDoc(collection(db, 'transactions'), {
-        id: `tx_welcome_${Date.now()}`,
+      const bonusTxId = `tx_welcome_${Date.now()}`;
+      await setDoc(doc(db, 'transactions', bonusTxId), {
+        id: bonusTxId,
         userId: cleanPhone,
         userPhone: cleanPhone,
         type: 'BONUS',
@@ -457,8 +458,25 @@ export const api = {
     };
 
     try {
-      await addDoc(collection(db, 'transactions'), newTx);
+      await setDoc(doc(db, 'transactions', newTx.id), newTx);
       await updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
+    } catch {}
+
+    // Also notify Express backend
+    try {
+      await fetch('/api/wallet/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          method,
+          accountNumber,
+          accountName,
+          phone: user.phone,
+          transactionId: newTx.id,
+          referenceNo: refNo,
+        }),
+      });
     } catch {}
 
     const txs = getLocalItem<Transaction[]>('transactions', []);
