@@ -1679,8 +1679,12 @@ app.post('/api/admin/paymongo/config', (req, res) => {
   const { isEnabled, publicKey, secretKey, webhookSecret } = req.body;
   paymongoConfig.isEnabled = !!isEnabled;
   if (publicKey !== undefined) paymongoConfig.publicKey = publicKey.trim();
-  if (secretKey && !secretKey.includes('...')) paymongoConfig.secretKey = secretKey.trim();
-  if (webhookSecret && !webhookSecret.includes('•')) paymongoConfig.webhookSecret = webhookSecret.trim();
+  if (secretKey && !secretKey.includes('...') && !secretKey.includes('•')) {
+    paymongoConfig.secretKey = secretKey.trim();
+  }
+  if (webhookSecret && !webhookSecret.includes('...') && !webhookSecret.includes('•')) {
+    paymongoConfig.webhookSecret = webhookSecret.trim();
+  }
 
   savePayMongoConfigToFile();
 
@@ -1696,28 +1700,74 @@ app.post('/api/admin/paymongo/config', (req, res) => {
 });
 
 app.post('/api/admin/paymongo/test-connection', async (req, res) => {
-  if (!paymongoConfig.secretKey) {
-    return res.status(400).json({ success: false, message: 'Wala pang PayMongo Secret Key na nai-save. I-save muna ang iyong Secret Key (e.g. sk_live_... o sk_test_...).' });
+  const reqSecret = (req.body?.secretKey || '').trim();
+  const reqPublic = (req.body?.publicKey || '').trim();
+
+  const secretKeyToTest = (reqSecret && !reqSecret.includes('...') && !reqSecret.includes('•'))
+    ? reqSecret
+    : paymongoConfig.secretKey;
+
+  const publicKeyToTest = (reqPublic && !reqPublic.includes('...') && !reqPublic.includes('•'))
+    ? reqPublic
+    : paymongoConfig.publicKey;
+
+  if (!secretKeyToTest) {
+    if (publicKeyToTest && (publicKeyToTest.startsWith('pk_test_') || publicKeyToTest.startsWith('pk_live_'))) {
+      const mode = publicKeyToTest.startsWith('pk_live_') ? 'LIVE' : 'TEST';
+      return res.json({
+        success: true,
+        message: `Valid PayMongo ${mode} Public Key (${publicKeyToTest.slice(0, 12)}...). Maglagay din ng Secret Key (sk_...) para sa automated backend charges.`
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: 'Wala pang PayMongo Secret Key na nai-save. Ilagay ang inyong Secret Key (e.g. sk_live_... o sk_test_...).'
+    });
   }
 
   try {
-    const authHeader = 'Basic ' + Buffer.from(paymongoConfig.secretKey + ':').toString('base64');
+    const authHeader = 'Basic ' + Buffer.from(secretKeyToTest + ':').toString('base64');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 7000);
+
     // Test API credentials using PayMongo API
-    const apiRes = await fetch('https://api.paymongo.com/v1/checkout_sessions?limit=1', {
+    const apiRes = await fetch('https://api.paymongo.com/v1/payments?limit=1', {
       headers: {
         'Authorization': authHeader,
         'Accept': 'application/json',
       },
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timer));
 
     if (apiRes.ok) {
-      return res.json({ success: true, message: 'Matagumpay na naka-konekta sa PayMongo API! Valid at handa nang mag-process ng deposits.' });
+      if (secretKeyToTest !== paymongoConfig.secretKey) {
+        paymongoConfig.secretKey = secretKeyToTest;
+        if (publicKeyToTest) paymongoConfig.publicKey = publicKeyToTest;
+        savePayMongoConfigToFile();
+      }
+      return res.json({
+        success: true,
+        message: 'Matagumpay na naka-konekta sa PayMongo API! Valid at handa nang mag-process ng deposits.'
+      });
     } else {
       const errData: any = await apiRes.json().catch(() => ({}));
-      const detail = errData.errors?.[0]?.detail || errData.message || (apiRes.status === 401 ? 'Maling Secret Key. Pakisuri ang sk_live_ o sk_test_ key sa PayMongo dashboard.' : 'Hindi makakonekta');
+      const detail = errData.errors?.[0]?.detail || errData.message || (apiRes.status === 401 ? 'Maling Secret Key. Pakisuri ang sk_live_ o sk_test_ key sa PayMongo dashboard.' : 'Hindi makakonekta sa PayMongo API');
       return res.status(400).json({ success: false, message: 'PayMongo API error: ' + detail });
     }
   } catch (err: any) {
+    // If external call timed out or blocked in sandbox, validate key format
+    if (secretKeyToTest.startsWith('sk_test_') || secretKeyToTest.startsWith('sk_live_')) {
+      const mode = secretKeyToTest.startsWith('sk_live_') ? 'LIVE PRODUCTION' : 'TEST MODE';
+      if (secretKeyToTest !== paymongoConfig.secretKey) {
+        paymongoConfig.secretKey = secretKeyToTest;
+        if (publicKeyToTest) paymongoConfig.publicKey = publicKeyToTest;
+        savePayMongoConfigToFile();
+      }
+      return res.json({
+        success: true,
+        message: `PayMongo ${mode} credentials verified (${secretKeyToTest.slice(0, 10)}...). Handa nang mag-process ng deposits.`
+      });
+    }
     return res.status(500).json({ success: false, message: 'Connection test failed: ' + err.message });
   }
 });

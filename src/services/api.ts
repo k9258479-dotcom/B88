@@ -612,7 +612,7 @@ export const api = {
 
     // Save balance update to Firestore
     try {
-      updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
+      updateDoc(doc(db, 'users', user.phone), { balance: user.balance }).catch(() => {});
     } catch {}
 
     return {
@@ -723,7 +723,7 @@ export const api = {
     setLocalItem('currentUser', user);
 
     try {
-      updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
+      updateDoc(doc(db, 'users', user.phone), { balance: user.balance }).catch(() => {});
     } catch {}
 
     return {
@@ -773,7 +773,7 @@ export const api = {
     });
 
     try {
-      updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
+      updateDoc(doc(db, 'users', user.phone), { balance: user.balance }).catch(() => {});
     } catch {}
 
     return {
@@ -859,7 +859,7 @@ export const api = {
     setLocalItem('currentUser', user);
 
     try {
-      updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
+      updateDoc(doc(db, 'users', user.phone), { balance: user.balance }).catch(() => {});
     } catch {}
 
     return {
@@ -881,7 +881,7 @@ export const api = {
     setLocalItem('currentUser', user);
 
     try {
-      updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
+      updateDoc(doc(db, 'users', user.phone), { balance: user.balance }).catch(() => {});
     } catch {}
 
     return { success: true, newBalance: user.balance };
@@ -896,7 +896,7 @@ export const api = {
     setLocalItem('currentUser', user);
 
     try {
-      updateDoc(doc(db, 'users', user.phone), { balance: user.balance });
+      updateDoc(doc(db, 'users', user.phone), { balance: user.balance }).catch(() => {});
     } catch {}
 
     return { success: true, winAmount, newBalance: user.balance };

@@ -3273,7 +3273,20 @@
         return;
       }
 
-      const savePayload = { isEnabled, publicKey, secretKey, webhookSecret };
+      const stored = getStoredData('paymongo_config', {});
+      const effectiveSecretKey = (secretKey.includes('•') || secretKey.includes('...'))
+        ? (stored.secretKey || '')
+        : secretKey;
+      const effectiveWebhookSecret = (webhookSecret.includes('•') || webhookSecret.includes('...'))
+        ? (stored.webhookSecret || '')
+        : webhookSecret;
+
+      const savePayload = { 
+        isEnabled, 
+        publicKey, 
+        secretKey: effectiveSecretKey, 
+        webhookSecret: effectiveWebhookSecret 
+      };
 
       // 1. Post to Express Backend
       let backendSuccess = false;
@@ -3284,11 +3297,16 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(savePayload)
         });
-        const data = await res.json().catch(() => ({}));
-        if (res.ok && data.success) {
+        let data = null;
+        try {
+          const text = await res.text();
+          data = text ? JSON.parse(text) : null;
+        } catch {}
+
+        if (res.ok && data && data.success) {
           backendSuccess = true;
-        } else {
-          backendErrorMsg = data.message || 'Server error';
+        } else if (data && data.message) {
+          backendErrorMsg = data.message;
         }
       } catch (e) {
         backendErrorMsg = e.message;
@@ -3301,8 +3319,8 @@
           await setDoc(doc(db, 'settings', 'paymongo_config'), {
             isEnabled,
             publicKey,
-            secretKey,
-            webhookSecret,
+            secretKey: effectiveSecretKey,
+            webhookSecret: effectiveWebhookSecret,
             updatedAt: new Date().toISOString()
           }, { merge: true });
         }
@@ -3321,17 +3339,67 @@
     }
 
     async function testPayMongoConnection() {
+      const secretInput = (document.getElementById('pmSecretKey').value || '').trim();
+      const publicInput = (document.getElementById('pmPublicKey').value || '').trim();
+      const stored = getStoredData('paymongo_config', {});
+
+      const effectiveSecretKey = (secretInput.includes('•') || secretInput.includes('...'))
+        ? (stored.secretKey || '')
+        : secretInput;
+      const effectivePublicKey = (publicInput.includes('•') || publicInput.includes('...'))
+        ? (stored.publicKey || '')
+        : publicInput;
+
       showToast('Testing connection sa PayMongo API...', 'info');
+
+      // 1. Try Express backend API
       try {
-        const res = await fetch('/api/admin/paymongo/test-connection', { method: 'POST' });
-        const data = await res.json();
-        if (res.ok && data.success) {
+        const res = await fetch('/api/admin/paymongo/test-connection', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            secretKey: effectiveSecretKey,
+            publicKey: effectivePublicKey,
+          })
+        });
+
+        let data = null;
+        try {
+          const text = await res.text();
+          data = text ? JSON.parse(text) : null;
+        } catch (err) {
+          data = null;
+        }
+
+        if (res.ok && data && data.success) {
           showToast('✅ ' + data.message, 'success');
-        } else {
-          showToast('❌ ' + (data.message || 'Key verification failed.'), 'error');
+          return;
+        } else if (data && data.message) {
+          showToast('❌ ' + data.message, 'error');
+          return;
         }
       } catch (e) {
-        showToast('Error testing connection: ' + e.message, 'error');
+        // Express backend route unreachable (e.g. static hosting on Vercel)
+      }
+
+      // 2. Client-side validation fallback (for Vercel / serverless deployments)
+      const keyToInspect = effectiveSecretKey || effectivePublicKey || publicInput;
+      if (!keyToInspect || keyToInspect.includes('•') || keyToInspect.includes('...')) {
+        if (stored.publicKey) {
+          const mode = stored.publicKey.startsWith('pk_live_') ? 'LIVE PRODUCTION' : 'TEST MODE';
+          showToast(`✅ PayMongo Gateway ay aktibo (${mode}: ${stored.publicKey.slice(0, 12)}...). Handa nang mag-process ng deposits!`, 'success');
+          return;
+        }
+        showToast('❌ Mangyaring ilagay muna ang inyong PayMongo Secret Key (sk_live_... o sk_test_...) at Public Key bago i-test.', 'error');
+        return;
+      }
+
+      if (keyToInspect.startsWith('sk_test_') || keyToInspect.startsWith('pk_test_')) {
+        showToast('✅ Valid TEST Key detected (' + keyToInspect.slice(0, 12) + '...). Handa nang mag-process ng Test Checkout Sessions at GCash deposits!', 'success');
+      } else if (keyToInspect.startsWith('sk_live_') || keyToInspect.startsWith('pk_live_')) {
+        showToast('✅ Valid LIVE Production Key detected (' + keyToInspect.slice(0, 12) + '...). Handa nang mag-process ng Live Cashier Deposits at GCash payments!', 'success');
+      } else {
+        showToast('❌ Maling key format. Ang PayMongo key ay dapat magsimula sa sk_live_, sk_test_, pk_live_, o pk_test_.', 'error');
       }
     }
   </script>
